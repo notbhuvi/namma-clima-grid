@@ -1,0 +1,32 @@
+.DS_Store
+.env
+.env.*
+!.env.template
+.venv/
+__pycache__/
+*.py[cod]
+
+# Model artifacts and local experiment outputs
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# JavaScript / frontend
+node_modules/
+dist/
+build/
+coverage/
+
+# Editor and OS files
+.idea/
+.vscode/
+*.swp
+.claude/
