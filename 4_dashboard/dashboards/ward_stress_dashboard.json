@@ -1,0 +1,261 @@
+{
+  "__version": "1.0.0",
+  "dashboard_title": "NammaClimaGrid — Bengaluru Ward Climate Stress",
+  "description": "Live Urban Heat Island & Flood Risk scores across 198 BBMP wards, powered by CNN-ViT + ST-GNN + PPO RL.",
+  "slug": "ward-stress",
+  "published": true,
+  "position_json": {
+    "DASHBOARD_VERSION_KEY": "v2",
+    "ROOT_ID": { "type": "ROOT", "id": "ROOT_ID", "children": ["GRID_ID"] },
+    "GRID_ID": {
+      "type": "GRID", "id": "GRID_ID",
+      "children": ["ROW_header", "ROW_kpis", "ROW_map", "ROW_charts", "ROW_table"]
+    },
+    "ROW_header": {
+      "type": "ROW", "id": "ROW_header", "meta": { "background": "BACKGROUND_TRANSPARENT" },
+      "children": ["HEADER_markdown"]
+    },
+    "HEADER_markdown": {
+      "type": "MARKDOWN", "id": "HEADER_markdown",
+      "meta": {
+        "width": 12, "height": 2,
+        "code": "## 🌡️ NammaClimaGrid — Bengaluru Ward Climate Stress Dashboard\nReal-time Urban Heat Island & Flood Risk across **198 BBMP wards** • Models: CNN-ViT (LST) + ST-GNN (Risk) + PPO RL (Interventions)"
+      }
+    },
+    "ROW_kpis": {
+      "type": "ROW", "id": "ROW_kpis", "meta": { "background": "BACKGROUND_TRANSPARENT" },
+      "children": ["KPI_critical_wards", "KPI_avg_heat", "KPI_avg_flood", "KPI_interventions_today"]
+    },
+    "KPI_critical_wards":      { "type": "CHART", "id": "KPI_critical_wards",      "meta": { "width": 3, "height": 3, "chartId": 1 } },
+    "KPI_avg_heat":            { "type": "CHART", "id": "KPI_avg_heat",            "meta": { "width": 3, "height": 3, "chartId": 2 } },
+    "KPI_avg_flood":           { "type": "CHART", "id": "KPI_avg_flood",           "meta": { "width": 3, "height": 3, "chartId": 3 } },
+    "KPI_interventions_today": { "type": "CHART", "id": "KPI_interventions_today", "meta": { "width": 3, "height": 3, "chartId": 4 } },
+    "ROW_map": {
+      "type": "ROW", "id": "ROW_map", "meta": { "background": "BACKGROUND_TRANSPARENT" },
+      "children": ["CHART_geo_map"]
+    },
+    "CHART_geo_map": { "type": "CHART", "id": "CHART_geo_map", "meta": { "width": 12, "height": 10, "chartId": 5 } },
+    "ROW_charts": {
+      "type": "ROW", "id": "ROW_charts", "meta": { "background": "BACKGROUND_TRANSPARENT" },
+      "children": ["CHART_heat_histogram", "CHART_flood_scatter", "CHART_top10_heat", "CHART_risk_distribution"]
+    },
+    "CHART_heat_histogram":   { "type": "CHART", "id": "CHART_heat_histogram",   "meta": { "width": 3, "height": 6, "chartId": 6 } },
+    "CHART_flood_scatter":    { "type": "CHART", "id": "CHART_flood_scatter",    "meta": { "width": 3, "height": 6, "chartId": 7 } },
+    "CHART_top10_heat":       { "type": "CHART", "id": "CHART_top10_heat",       "meta": { "width": 3, "height": 6, "chartId": 8 } },
+    "CHART_risk_distribution": { "type": "CHART", "id": "CHART_risk_distribution", "meta": { "width": 3, "height": 6, "chartId": 9 } },
+    "ROW_table": {
+      "type": "ROW", "id": "ROW_table", "meta": { "background": "BACKGROUND_TRANSPARENT" },
+      "children": ["CHART_ward_table"]
+    },
+    "CHART_ward_table": { "type": "CHART", "id": "CHART_ward_table", "meta": { "width": 12, "height": 8, "chartId": 10 } }
+  },
+  "metadata": {
+    "color_scheme": "bnbColors",
+    "refresh_frequency": 60,
+    "timed_refresh_immune_slices": [],
+    "default_filters": "{}",
+    "filter_scopes": {}
+  },
+  "filters": [
+    {
+      "id": "FLT_risk_level",
+      "type": "NATIVE_FILTER",
+      "name": "Risk Level",
+      "filterType": "filter_select",
+      "targets": [{ "datasetId": 1, "column": { "name": "risk_level" } }],
+      "defaultDataMask": { "filterState": { "value": null } },
+      "controlValues": { "multiSelect": true, "enableEmptyFilter": false, "defaultToFirstItem": false }
+    },
+    {
+      "id": "FLT_heat_min",
+      "type": "NATIVE_FILTER",
+      "name": "Min Heat Stress",
+      "filterType": "filter_range",
+      "targets": [{ "datasetId": 1, "column": { "name": "heat_stress_score" } }],
+      "defaultDataMask": { "filterState": { "value": [0, 100] } }
+    }
+  ],
+  "slices": [
+    {
+      "id": 1,
+      "slice_name": "Critical Wards",
+      "viz_type": "big_number_total",
+      "datasource": "ward_risk_scores : table",
+      "query_context": {},
+      "params": {
+        "metric": { "expressionType": "SQL", "sqlExpression": "COUNT(*) FILTER (WHERE risk_level = 'critical')", "label": "Critical Wards" },
+        "subheader": "Wards at CRITICAL risk",
+        "y_axis_format": "SMART_NUMBER",
+        "header_font_size": 0.3
+      }
+    },
+    {
+      "id": 2,
+      "slice_name": "Avg Heat Stress",
+      "viz_type": "big_number_total",
+      "datasource": "ward_risk_scores : table",
+      "params": {
+        "metric": { "expressionType": "SQL", "sqlExpression": "ROUND(AVG(heat_stress_score)::numeric, 1)", "label": "Avg Heat Stress" },
+        "subheader": "City-wide average (0–100)",
+        "y_axis_format": ".1f"
+      }
+    },
+    {
+      "id": 3,
+      "slice_name": "Avg Flood Risk",
+      "viz_type": "big_number_total",
+      "datasource": "ward_risk_scores : table",
+      "params": {
+        "metric": { "expressionType": "SQL", "sqlExpression": "ROUND(AVG(flood_risk_score)::numeric, 1)", "label": "Avg Flood Risk" },
+        "subheader": "City-wide average (0–100)",
+        "y_axis_format": ".1f"
+      }
+    },
+    {
+      "id": 4,
+      "slice_name": "Interventions Today",
+      "viz_type": "big_number_total",
+      "datasource": "interventions : table",
+      "params": {
+        "metric": { "expressionType": "SQL", "sqlExpression": "COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE)", "label": "Interventions Today" },
+        "subheader": "RL-recommended interventions",
+        "y_axis_format": "SMART_NUMBER"
+      }
+    },
+    {
+      "id": 5,
+      "slice_name": "Ward Risk Map",
+      "viz_type": "deck_geojson",
+      "datasource": "ward_risk_scores : table",
+      "params": {
+        "spatial": { "type": "latlong", "lonCol": "centroid_lon", "latCol": "centroid_lat" },
+        "color_picker": { "a": 1, "b": 135, "g": 85, "r": 220 },
+        "fill_color_picker": { "a": 0.7, "b": 0, "g": 0, "r": 255 },
+        "geojson": "geometry",
+        "point_radius": 40,
+        "legend_format": ".1f",
+        "viewport": {
+          "bearing": 0, "latitude": 12.9716, "longitude": 77.5946,
+          "pitch": 0, "zoom": 10
+        },
+        "metric": "heat_stress_score",
+        "linear_color_scheme": ["#00ff00", "#ffff00", "#ff8800", "#ff0000"],
+        "opacity": 70,
+        "tooltip_fields": ["ward_name", "heat_stress_score", "flood_risk_score", "risk_level", "lst_pred_celsius"]
+      }
+    },
+    {
+      "id": 6,
+      "slice_name": "Heat Stress Distribution",
+      "viz_type": "histogram",
+      "datasource": "ward_risk_scores : table",
+      "params": {
+        "all_columns_x": "heat_stress_score",
+        "link_length": 10,
+        "x_axis_label": "Heat Stress Score (0–100)",
+        "y_axis_label": "Number of Wards",
+        "color_scheme": "bnbColors"
+      }
+    },
+    {
+      "id": 7,
+      "slice_name": "Heat vs Flood Risk",
+      "viz_type": "scatter",
+      "datasource": "ward_risk_scores : table",
+      "params": {
+        "x": "heat_stress_score",
+        "y": "flood_risk_score",
+        "entity": "ward_name",
+        "series": "risk_level",
+        "max_bubble_size": "8",
+        "x_axis_label": "Heat Stress Score",
+        "y_axis_label": "Flood Risk Score",
+        "color_scheme": "bnbColors"
+      }
+    },
+    {
+      "id": 8,
+      "slice_name": "Top 10 Hottest Wards",
+      "viz_type": "bar",
+      "datasource": "ward_risk_scores : table",
+      "params": {
+        "metrics": ["heat_stress_score"],
+        "groupby": ["ward_name"],
+        "row_limit": 10,
+        "order_desc": true,
+        "x_axis_label": "Ward",
+        "y_axis_label": "Heat Stress Score",
+        "color_scheme": "bnbColors",
+        "show_legend": false
+      }
+    },
+    {
+      "id": 9,
+      "slice_name": "Risk Level Distribution",
+      "viz_type": "pie",
+      "datasource": "ward_risk_scores : table",
+      "params": {
+        "metric": { "expressionType": "SIMPLE", "aggregate": "COUNT", "column": { "column_name": "ward_id" }, "label": "Wards" },
+        "groupby": ["risk_level"],
+        "color_scheme": "bnbColors",
+        "donut": true,
+        "show_legend": true,
+        "labels_outside": true
+      }
+    },
+    {
+      "id": 10,
+      "slice_name": "All Ward Risk Scores",
+      "viz_type": "table",
+      "datasource": "ward_risk_scores : table",
+      "params": {
+        "query_mode": "raw",
+        "columns": ["ward_id", "ward_name", "heat_stress_score", "flood_risk_score", "lst_pred_celsius", "ndvi", "impervious_pct", "risk_level", "updated_at"],
+        "metrics": [],
+        "order_by_cols": [["heat_stress_score", false]],
+        "page_length": 25,
+        "include_search": true,
+        "table_filter": true,
+        "align_pn": true,
+        "color_pn": true
+      }
+    }
+  ],
+  "datasets": [
+    {
+      "table_name": "ward_risk_scores",
+      "schema": "public",
+      "database": "NammaClimaGrid",
+      "description": "Latest ST-GNN predictions per ward, refreshed every 5 min",
+      "sql": "SELECT w.ward_id, w.ward_name, w.centroid_lat, w.centroid_lon, r.heat_stress_score, r.flood_risk_score, r.lst_pred_celsius, r.ndvi, r.impervious_pct, r.risk_level, r.updated_at FROM ward_risk_scores r JOIN wards w USING (ward_id) ORDER BY r.heat_stress_score DESC",
+      "columns": [
+        { "column_name": "ward_id",           "type": "INTEGER" },
+        { "column_name": "ward_name",          "type": "VARCHAR" },
+        { "column_name": "heat_stress_score",  "type": "FLOAT" },
+        { "column_name": "flood_risk_score",   "type": "FLOAT" },
+        { "column_name": "lst_pred_celsius",   "type": "FLOAT" },
+        { "column_name": "ndvi",               "type": "FLOAT" },
+        { "column_name": "impervious_pct",     "type": "FLOAT" },
+        { "column_name": "risk_level",         "type": "VARCHAR" },
+        { "column_name": "centroid_lat",       "type": "FLOAT" },
+        { "column_name": "centroid_lon",       "type": "FLOAT" },
+        { "column_name": "updated_at",         "type": "TIMESTAMP" }
+      ]
+    },
+    {
+      "table_name": "interventions",
+      "schema": "public",
+      "database": "NammaClimaGrid",
+      "description": "PPO RL-recommended interventions log",
+      "columns": [
+        { "column_name": "id",                 "type": "INTEGER" },
+        { "column_name": "ward_id",            "type": "INTEGER" },
+        { "column_name": "intervention_type",  "type": "VARCHAR" },
+        { "column_name": "cost",               "type": "INTEGER" },
+        { "column_name": "expected_heat_reduction", "type": "FLOAT" },
+        { "column_name": "expected_flood_reduction", "type": "FLOAT" },
+        { "column_name": "created_at",         "type": "TIMESTAMP" }
+      ]
+    }
+  ]
+}

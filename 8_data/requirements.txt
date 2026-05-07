@@ -1,0 +1,15 @@
+# Module 7 — Mock Data Generator dependencies (Python 3.11)
+requests==2.32.3
+httpx==0.27.2
+tenacity==9.0.0
+python-dotenv==1.0.1
+loguru==0.7.2
+numpy==1.26.4
+pandas==2.2.2
+pyarrow==16.1.0
+shapely==2.0.4
+geopandas==0.14.4
+confluent-kafka==2.5.0
+tqdm==4.66.4
+# Optional — real satellite fetch. Comment out if you only want the cached fallback.
+earthengine-api==0.1.408

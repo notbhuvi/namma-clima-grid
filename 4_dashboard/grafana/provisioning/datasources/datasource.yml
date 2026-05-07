@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  - name: PostgreSQL-NCG
+    type: postgres
+    url: postgres:5432
+    database: namma_clima_grid
+    user: ncg_user
+    secureJsonData:
+      password: change_me_in_production
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+    isDefault: true
+    editable: true

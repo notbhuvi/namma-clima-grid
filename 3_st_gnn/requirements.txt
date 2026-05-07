@@ -1,0 +1,25 @@
+# Module 3 — Spatio-Temporal GNN
+# Python 3.9+
+# Install: pip install -r requirements.txt
+
+# Graph neural network
+torch>=2.1.0
+torch-geometric>=2.5.0         # GraphSAGE, GCN, edge_index utilities
+torch-scatter>=2.1.2           # required by torch-geometric
+torch-sparse>=0.6.18           # required by torch-geometric
+
+# Data / numerics
+numpy>=1.24
+pandas>=2.0
+pyarrow>=14.0                  # Parquet I/O
+scikit-learn>=1.3              # metrics, train/val split
+scipy>=1.11                    # spatial KD-tree for adjacency
+
+# Experiment tracking
+mlflow>=2.9.0
+
+# Utilities
+tqdm>=4.65
+loguru>=0.7
+pydantic-settings>=2.0
+python-dotenv>=1.0

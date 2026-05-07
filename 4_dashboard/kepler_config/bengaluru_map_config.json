@@ -1,0 +1,254 @@
+{
+  "version": "v1",
+  "config": {
+    "visState": {
+      "filters": [
+        {
+          "dataId": ["ward_risk"],
+          "id": "fltr_risk_level",
+          "name": ["risk_level"],
+          "type": "multiSelect",
+          "value": [],
+          "enlarged": false,
+          "plotType": "histogram",
+          "animationWindow": "free",
+          "yAxis": null,
+          "speed": 4
+        },
+        {
+          "dataId": ["ward_risk"],
+          "id": "fltr_heat_stress",
+          "name": ["heat_stress_score"],
+          "type": "range",
+          "value": [0, 100],
+          "enlarged": false,
+          "plotType": "histogram",
+          "animationWindow": "free",
+          "yAxis": null,
+          "speed": 4
+        }
+      ],
+      "layers": [
+        {
+          "id": "ward_heat_layer",
+          "type": "geojson",
+          "config": {
+            "dataId": "ward_boundaries",
+            "label": "Ward Heat Stress",
+            "color": [255, 153, 31],
+            "highlightColor": [252, 242, 26, 255],
+            "columns": { "geojson": "geometry" },
+            "isVisible": true,
+            "visConfig": {
+              "opacity": 0.6,
+              "strokeOpacity": 0.8,
+              "thickness": 0.5,
+              "strokeColor": [255, 255, 255],
+              "colorRange": {
+                "name": "Heat Stress",
+                "type": "sequential",
+                "category": "Custom",
+                "colors": ["#00b050", "#ffff00", "#ff9900", "#ff0000", "#7030a0"],
+                "reversed": false
+              },
+              "strokeColorRange": {
+                "name": "Global Warming",
+                "type": "sequential",
+                "category": "Uber",
+                "colors": ["#5A1846", "#900C3F", "#C70039", "#E3611C", "#F1920E", "#FFC300"]
+              },
+              "radius": 10,
+              "sizeRange": [0, 10],
+              "radiusRange": [0, 50],
+              "heightRange": [0, 500],
+              "elevationScale": 5,
+              "enableElevationZoomFactor": true,
+              "stroked": true,
+              "filled": true,
+              "enable3d": false,
+              "wireframe": false
+            },
+            "hidden": false,
+            "textLabel": [
+              {
+                "field": { "name": "ward_name", "type": "string" },
+                "color": [255, 255, 255],
+                "size": 12,
+                "offset": [0, 0],
+                "anchor": "start",
+                "alignment": "center"
+              }
+            ]
+          },
+          "visualChannels": {
+            "colorField": { "name": "heat_stress_score", "type": "real" },
+            "colorScale": "quantize",
+            "strokeColorField": null,
+            "strokeColorScale": "quantile",
+            "sizeField": null,
+            "sizeScale": "linear",
+            "heightField": { "name": "heat_stress_score", "type": "real" },
+            "heightScale": "linear",
+            "radiusField": null,
+            "radiusScale": "linear"
+          }
+        },
+        {
+          "id": "ward_flood_layer",
+          "type": "geojson",
+          "config": {
+            "dataId": "ward_boundaries",
+            "label": "Ward Flood Risk",
+            "color": [0, 150, 255],
+            "highlightColor": [252, 242, 26, 255],
+            "columns": { "geojson": "geometry" },
+            "isVisible": false,
+            "visConfig": {
+              "opacity": 0.5,
+              "strokeOpacity": 0.8,
+              "thickness": 0.5,
+              "strokeColor": [200, 200, 255],
+              "colorRange": {
+                "name": "Flood Risk",
+                "type": "sequential",
+                "category": "Custom",
+                "colors": ["#e8f4f8", "#a8d5ea", "#5bafd6", "#1a6eab", "#0d3a7a"],
+                "reversed": false
+              },
+              "stroked": true,
+              "filled": true,
+              "enable3d": false
+            },
+            "hidden": false,
+            "textLabel": []
+          },
+          "visualChannels": {
+            "colorField": { "name": "flood_risk_score", "type": "real" },
+            "colorScale": "quantize",
+            "heightField": { "name": "flood_risk_score", "type": "real" },
+            "heightScale": "linear"
+          }
+        },
+        {
+          "id": "intervention_points_layer",
+          "type": "point",
+          "config": {
+            "dataId": "interventions",
+            "label": "Active Interventions",
+            "color": [0, 204, 102],
+            "highlightColor": [252, 242, 26, 255],
+            "columns": {
+              "lat": "centroid_lat",
+              "lng": "centroid_lon",
+              "altitude": null
+            },
+            "isVisible": true,
+            "visConfig": {
+              "radius": 12,
+              "fixedRadius": false,
+              "opacity": 0.9,
+              "outline": true,
+              "thickness": 2,
+              "strokeColor": [255, 255, 255],
+              "colorRange": {
+                "name": "Intervention Types",
+                "type": "qualitative",
+                "category": "Custom",
+                "colors": ["#00cc66", "#3399ff", "#ff6600", "#9933ff", "#ffcc00"]
+              },
+              "strokeColorRange": {
+                "name": "Global Warming",
+                "type": "sequential",
+                "category": "Uber",
+                "colors": ["#5A1846", "#900C3F", "#C70039", "#E3611C", "#F1920E", "#FFC300"]
+              },
+              "radiusRange": [8, 20]
+            },
+            "hidden": false,
+            "textLabel": []
+          },
+          "visualChannels": {
+            "colorField": { "name": "intervention_type", "type": "string" },
+            "colorScale": "ordinal",
+            "sizeField": { "name": "expected_heat_reduction", "type": "real" },
+            "sizeScale": "linear"
+          }
+        }
+      ],
+      "interactionConfig": {
+        "tooltip": {
+          "fieldsToShow": {
+            "ward_boundaries": [
+              { "name": "ward_id",          "format": null },
+              { "name": "ward_name",        "format": null },
+              { "name": "heat_stress_score","format": ".1f" },
+              { "name": "flood_risk_score", "format": ".1f" },
+              { "name": "lst_pred_celsius", "format": ".1f" },
+              { "name": "risk_level",       "format": null },
+              { "name": "ndvi",             "format": ".3f" },
+              { "name": "impervious_pct",   "format": ".1f" }
+            ],
+            "interventions": [
+              { "name": "ward_name",                  "format": null },
+              { "name": "intervention_type",          "format": null },
+              { "name": "expected_heat_reduction",    "format": ".1f" },
+              { "name": "expected_flood_reduction",   "format": ".1f" },
+              { "name": "cost",                       "format": null }
+            ]
+          },
+          "compareMode": false,
+          "compareType": "absolute",
+          "enabled": true
+        },
+        "brush": { "size": 0.5, "enabled": false },
+        "geocoder": { "enabled": false },
+        "coordinate": { "enabled": true }
+      },
+      "layerBlending": "normal",
+      "splitMaps": [],
+      "animationConfig": { "currentTime": null, "speed": 1 }
+    },
+    "mapState": {
+      "bearing": 0,
+      "dragRotate": false,
+      "latitude": 12.9716,
+      "longitude": 77.5946,
+      "pitch": 0,
+      "zoom": 10.5,
+      "isSplit": false
+    },
+    "mapStyle": {
+      "styleType": "dark",
+      "topLayerGroups": {},
+      "visibleLayerGroups": {
+        "label": true,
+        "road": true,
+        "border": false,
+        "building": true,
+        "water": true,
+        "land": true,
+        "3d building": false
+      },
+      "threeDBuildingColor": [9.665468314072013, 17.18305478057247, 31.1442867897876],
+      "mapStyles": {}
+    }
+  },
+  "_data_sources": {
+    "ward_boundaries": {
+      "description": "198 BBMP ward polygons with live ST-GNN predictions",
+      "url": "http://localhost:8000/wards/risk",
+      "transform": "response.wards",
+      "geojson_source": "8_data/bengaluru_wards.geojson",
+      "join_key": "ward_id",
+      "refresh_seconds": 60
+    },
+    "interventions": {
+      "description": "PPO RL recommended interventions",
+      "url": "http://localhost:8000/interventions/recommend",
+      "method": "POST",
+      "body": { "budget": 60, "top_k": 20 },
+      "transform": "response.recommendations",
+      "refresh_seconds": 300
+    }
+  }
+}

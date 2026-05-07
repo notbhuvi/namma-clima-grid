@@ -1,0 +1,21 @@
+# Module 4 — RL Green Infra Optimizer
+# Python 3.9+
+# Install: pip install -r requirements.txt
+
+# Deep learning + RL
+torch>=2.1.0
+gymnasium>=0.29.0              # modern OpenAI Gym fork
+
+# Data / numerics
+numpy>=1.24
+pandas>=2.0
+scipy>=1.11
+
+# Experiment tracking
+mlflow>=2.9.0
+
+# Utilities
+tqdm>=4.65
+loguru>=0.7
+pydantic-settings>=2.0
+python-dotenv>=1.0

@@ -1,0 +1,25 @@
+# Module 5 — FastAPI Backend
+# Python 3.9+
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5
+pydantic-settings>=2.0
+
+# Async database + cache
+asyncpg>=0.29.0            # async PostgreSQL driver
+redis>=5.0                 # async Redis (alerts, cache)
+sqlalchemy[asyncio]>=2.0   # optional ORM layer
+
+# ML inference (pulled from Modules 2-4)
+torch>=2.1.0
+numpy>=1.24
+pandas>=2.0
+
+# WebSocket support (included in uvicorn[standard])
+websockets>=12.0
+
+# Utilities
+loguru>=0.7
+python-dotenv>=1.0
+httpx>=0.27.0              # async HTTP client (health checks)

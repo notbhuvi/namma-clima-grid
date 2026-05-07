@@ -1,0 +1,37 @@
+# Module 1 — Data Pipeline dependencies (Python 3.11)
+
+# Kafka
+confluent-kafka==2.5.0
+
+# HTTP / retry
+httpx==0.27.2
+tenacity==9.0.0
+
+# Config / logging
+python-dotenv==1.0.1
+loguru==0.7.2
+pydantic==2.7.4
+pydantic-settings==2.3.4
+
+# Flink (PyFlink matches the server version)
+apache-flink==1.18.1
+
+# Spark + Delta Lake
+pyspark==3.5.1
+delta-spark==3.2.0
+
+# Geo / data
+numpy==1.26.4
+pandas==2.2.2
+pyarrow==16.1.0
+geopandas==0.14.4
+shapely==2.0.4
+
+# Airflow (installed by the Airflow image; listed for local venv completeness)
+apache-airflow==2.7.3
+
+# Satellite (optional — falls back to synthetic if absent)
+earthengine-api==0.1.408
+
+# Misc
+tqdm==4.66.4

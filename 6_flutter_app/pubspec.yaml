@@ -1,0 +1,55 @@
+name: namma_clima_grid
+description: Bengaluru thermal-hydrological resilience app — real-time UHI stress and flood risk per BBMP ward.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # HTTP + WebSocket
+  dio: ^5.4.3
+  web_socket_channel: ^2.4.5
+
+  # Maps
+  flutter_map: ^6.2.1
+  latlong2: ^0.9.1
+
+  # Charts
+  fl_chart: ^0.67.0
+
+  # UI
+  google_fonts: ^6.2.1
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+  badges: ^3.1.2
+
+  # Image upload
+  image_picker: ^1.1.2
+
+  # Utils
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+  intl: ^0.19.0
+  logger: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.9
+  freezed: ^2.5.2
+  json_serializable: ^6.7.1
+  riverpod_generator: ^2.4.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/

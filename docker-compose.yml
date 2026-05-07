@@ -1,0 +1,363 @@
+# =============================================================================
+# NammaClimaGrid — Full Local Development Stack
+# =============================================================================
+# Usage:
+#   cp .env.template .env       # edit secrets
+#   docker-compose up -d        # start all services
+#   docker-compose logs -f api  # tail a specific service
+#   docker-compose down -v      # stop and purge volumes
+#
+# Services are wired together through the `namma-net` bridge network.
+# Persistent data lives in named volumes so restarts are non-destructive.
+# =============================================================================
+
+# version field removed — obsolete in Compose V2+
+
+networks:
+  namma-net:
+    driver: bridge
+
+volumes:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+  postgres-data:
+  redis-data:
+  delta-lake-data:
+  mlflow-data:
+  airflow-logs:
+  airflow-dags:
+  superset-data:
+  flink-checkpoints:
+  grafana_data:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Kafka (KRaft mode) — native ARM64 via Bitnami, no Zookeeper required.
+  # Replaces confluentinc images which OOM-crash under x86_64 emulation on
+  # Apple Silicon. KRaft mode uses Kafka's built-in Raft consensus instead
+  # of a separate Zookeeper process.
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: ncg-kafka
+    hostname: kafka
+    networks: [namma-net]
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      # KRaft mode — no Zookeeper needed
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # Listeners: internal (broker-to-broker), controller, and host-facing
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Topic defaults
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # JVM heap — keep modest for local dev
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    mem_limit: 768m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Apache Flink — stream processor for real-time ward aggregations
+  # ---------------------------------------------------------------------------
+  flink-jobmanager:
+    image: flink:1.18-scala_2.12-java11
+    container_name: ncg-flink-jobmanager
+    hostname: flink-jobmanager
+    networks: [namma-net]
+    ports:
+      - "8085:8081"   # Flink web UI (host 8085 -> container 8081)
+    command: jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        state.checkpoints.dir: file:///flink/checkpoints
+        jobmanager.memory.process.size: 1024 mb
+    mem_limit: 1200m
+    volumes:
+      - flink-checkpoints:/flink/checkpoints
+
+  flink-taskmanager:
+    image: flink:1.18-scala_2.12-java11
+    container_name: ncg-flink-taskmanager
+    hostname: flink-taskmanager
+    networks: [namma-net]
+    depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    scale: 1
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 1024 mb
+    mem_limit: 1200m
+    volumes:
+      - flink-checkpoints:/flink/checkpoints
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL + PostGIS — ward geometry, citizen reports, Airflow metadata
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:15-3.4
+    container_name: ncg-postgres
+    hostname: postgres
+    networks: [namma-net]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-namma_clima_grid}
+      POSTGRES_USER: ${POSTGRES_USER:-ncg_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      # Create a second DB for Airflow metadata on first boot
+      POSTGRES_MULTIPLE_DATABASES: airflow,superset
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./7_infrastructure/postgres/init-multi-db.sql:/docker-entrypoint-initdb.d/init-multi-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ncg_user} -d ${POSTGRES_DB:-namma_clima_grid}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis — in-memory cache for ST-GNN predictions served by the API
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine
+    container_name: ncg-redis
+    hostname: redis
+    networks: [namma-net]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # MLflow — experiment tracking + model registry
+  # ---------------------------------------------------------------------------
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: ncg-mlflow
+    hostname: mlflow
+    networks: [namma-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5001:5000"
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://${POSTGRES_USER:-ncg_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/${POSTGRES_DB:-namma_clima_grid}
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlflow/artifacts
+    volumes:
+      - mlflow-data:/mlflow
+    command:
+      - bash
+      - -c
+      - >-
+        pip install psycopg2-binary &&
+        mlflow server
+        --backend-store-uri postgresql+psycopg2://ncg_user:change_me_in_production@postgres:5432/namma_clima_grid
+        --default-artifact-root /mlflow/artifacts
+        --host 0.0.0.0
+        --port 5000
+
+  # ---------------------------------------------------------------------------
+  # FastAPI backend — ward stress + forecast + intervention endpoints
+  # NOTE: Uncomment once Module 5 is built (3_backend_api/ must exist).
+  # ---------------------------------------------------------------------------
+  # api:
+  #   build:
+  #     context: ./3_backend_api
+  #     dockerfile: Dockerfile
+  #   container_name: ncg-api
+  #   hostname: api
+  #   networks: [namma-net]
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8000:8000"
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     POSTGRES_HOST: postgres
+  #     REDIS_HOST: redis
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #     MLFLOW_TRACKING_URI: http://mlflow:5000
+  #   volumes:
+  #     - ./3_backend_api:/app
+  #     - ./8_data:/data/static
+  #     - delta-lake-data:/data/delta
+  #   restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Apache Airflow — orchestrates daily satellite + feature pipelines
+  # ---------------------------------------------------------------------------
+  airflow-webserver:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: ncg-airflow-web
+    hostname: airflow-webserver
+    networks: [namma-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8088:8080"
+    env_file:
+      - .env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ncg_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      _AIRFLOW_DB_UPGRADE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./1_data_pipeline/airflow_dags:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    command: webserver
+    restart: unless-stopped
+
+  airflow-scheduler:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: ncg-airflow-scheduler
+    hostname: airflow-scheduler
+    networks: [namma-net]
+    depends_on:
+      - airflow-webserver
+    env_file:
+      - .env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ncg_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    volumes:
+      - ./1_data_pipeline/airflow_dags:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    command: scheduler
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Apache Superset — BBMP councillor dashboards
+  # ---------------------------------------------------------------------------
+  superset:
+    image: apache/superset:3.1.1
+    container_name: ncg-superset
+    hostname: superset
+    networks: [namma-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8089:8088"
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-change_me_use_openssl_rand_base64_42}
+      SUPERSET_LOAD_EXAMPLES: "no"
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-ncg_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/superset
+    volumes:
+      - superset-data:/app/superset_home
+    command: >
+      bash -c "pip install psycopg2-binary &&
+               superset db upgrade &&
+               superset fab create-admin
+                 --username ${SUPERSET_ADMIN_USER:-admin}
+                 --firstname Admin
+                 --lastname User
+                 --email ${SUPERSET_ADMIN_EMAIL:-admin@nammaclimagrid.local}
+                 --password ${SUPERSET_ADMIN_PASSWORD:-admin} || true &&
+               superset init &&
+               gunicorn --bind 0.0.0.0:8088 --workers 2 --timeout 120 'superset.app:create_app()'"
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Grafana — metrics and monitoring dashboards
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: ncg-grafana
+    hostname: grafana
+    networks: [namma-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3002:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ncg_admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./4_dashboard/grafana/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Apache Spark — batch processing master + worker
+  # ---------------------------------------------------------------------------
+  spark:
+    image: bitnami/spark:3.5
+    container_name: ncg-spark
+    hostname: spark
+    networks: [namma-net]
+    ports:
+      - "7077:7077"
+      - "8090:8080"
+    environment:
+      SPARK_MODE: master
+    mem_limit: 1500m
+
+  spark-worker:
+    image: bitnami/spark:3.5
+    container_name: ncg-spark-worker
+    hostname: spark-worker
+    networks: [namma-net]
+    depends_on:
+      - spark
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark:7077
+    mem_limit: 1500m
+
+# =============================================================================
+# Service URL cheat sheet (once `docker-compose up -d` completes):
+#   Kafka broker ............ localhost:9092
+#   Flink UI ................ http://localhost:8085
+#   PostgreSQL .............. localhost:5432
+#   Redis ................... localhost:6379
+#   MLflow .................. http://localhost:5001
+#   FastAPI backend ......... http://localhost:8000/docs
+#   Airflow ................. http://localhost:8088  (admin/admin)
+#   Superset ................ http://localhost:8089  (admin/admin)
+#   Grafana ................. http://localhost:3002  (admin/ncg_admin)
+#   Spark UI ................ http://localhost:8090
+# =============================================================================

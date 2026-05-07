@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NammaClimaGrid — Bengaluru real-time urban heat and flood risk intelligence platform">
+  <meta name="theme-color" content="#1B6B3A">
+
+  <!-- PWA -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NammaClimaGrid">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="manifest" href="manifest.json">
+
+  <title>NammaClimaGrid — Bengaluru Climate Intelligence</title>
+
+  <style>
+    /* Loading screen */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #1B6B3A;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, #1B6B3A 0%, #0D4422 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+    #loading-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #loading-screen .logo {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    #loading-screen h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 4px 0;
+      letter-spacing: 0.5px;
+    }
+    #loading-screen p {
+      font-size: 13px;
+      margin: 0 0 32px 0;
+      opacity: 0.8;
+    }
+    #loading-screen .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <!-- Loading screen shown until Flutter initialises -->
+  <div id="loading-screen">
+    <div class="logo">🌿</div>
+    <h1>NammaClimaGrid</h1>
+    <p>Bengaluru Climate Intelligence Platform</p>
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    // Hide loading screen once Flutter is ready
+    window.addEventListener('flutter-first-frame', function() {
+      var ls = document.getElementById('loading-screen');
+      if (ls) {
+        ls.classList.add('hidden');
+        setTimeout(function() { ls.remove(); }, 600);
+      }
+    });
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

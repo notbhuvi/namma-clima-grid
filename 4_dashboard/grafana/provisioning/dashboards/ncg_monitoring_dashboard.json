@@ -1,0 +1,667 @@
+{
+  "description": "NammaClimaGrid real-time monitoring \u2014 ward risk scores, weather, citizen reports",
+  "id": null,
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM ward_risk_scores",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Wards Monitored",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM ward_risk_scores WHERE risk_level = 'critical'",
+          "refId": "A"
+        }
+      ],
+      "title": "Critical Risk Wards",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "orange",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM ward_risk_scores WHERE risk_level = 'high'",
+          "refId": "A"
+        }
+      ],
+      "title": "High Risk Wards",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT round(avg(heat_stress_score)::numeric, 1) AS value FROM ward_risk_scores",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Heat Stress Score",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT round(avg(flood_risk_score)::numeric, 1) AS value FROM ward_risk_scores",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Flood Risk Score",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "purple",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM citizen_reports",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Citizen Reports",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 10,
+      "options": {
+        "barRadius": 0.1,
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT risk_level, count(*) as ward_count FROM ward_risk_scores GROUP BY risk_level ORDER BY ward_count DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Risk Level Distribution",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "risk_level"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "heat_stress"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "gradient-gauge"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 11,
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "heat_stress"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT \n                    w.ward_name,\n                    r.ward_id,\n                    round(r.heat_stress_score::numeric, 1) as heat_stress,\n                    round(r.flood_risk_score::numeric, 1) as flood_risk,\n                    r.risk_level,\n                    round(r.lst_pred_celsius::numeric, 1) as lst_celsius,\n                    round(r.ndvi::numeric, 3) as ndvi\n                  FROM ward_risk_scores r\n                  LEFT JOIN wards w ON w.ward_id = r.ward_id\n                  ORDER BY r.heat_stress_score DESC \n                  LIMIT 10",
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 Heat Risk Wards",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          },
+          "unit": "celsius"
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 20,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT \n                    recorded_at AS \"time\",\n                    temperature_c as \"Temperature \u00b0C\",\n                    ward_id::text as metric\n                  FROM weather_readings \n                  WHERE recorded_at > now() - interval '24 hours'\n                  ORDER BY recorded_at",
+          "refId": "A"
+        }
+      ],
+      "title": "Temperature Readings (Last 24h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        },
+        "pieType": "donut"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT report_type AS metric, count(*) AS value FROM citizen_reports GROUP BY report_type ORDER BY value DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Citizen Reports by Type",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 30,
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT \n                    ward_id::text AS metric, \n                    round(avg(humidity_pct)::numeric, 1) AS value \n                  FROM weather_readings \n                  GROUP BY ward_id \n                  ORDER BY value DESC\n                  LIMIT 15",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Humidity % by Ward",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "combined_risk"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "gradient-gauge"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 31,
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT \n                    w.ward_name,\n                    r.ward_id,\n                    round(r.heat_stress_score::numeric, 1) as heat_stress,\n                    round(r.flood_risk_score::numeric, 1) as flood_risk,\n                    round((0.6*r.heat_stress_score + 0.4*r.flood_risk_score)::numeric, 1) as combined_risk,\n                    r.risk_level,\n                    round(r.ndvi::numeric, 3) as ndvi,\n                    round(r.impervious_pct::numeric, 1) as impervious_pct\n                  FROM ward_risk_scores r\n                  LEFT JOIN wards w ON w.ward_id = r.ward_id\n                  ORDER BY combined_risk DESC\n                  LIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Ward Risk Matrix (Heat vs Flood)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P5B7AC0252100194D"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 40,
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "reported_at"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P5B7AC0252100194D"
+          },
+          "format": "table",
+          "rawSql": "SELECT \n                    cr.id, \n                    w.ward_name,\n                    cr.ward_id,\n                    cr.report_type,\n                    cr.severity,\n                    cr.description,\n                    cr.reported_at\n                  FROM citizen_reports cr\n                  LEFT JOIN wards w ON w.ward_id = cr.ward_id\n                  ORDER BY cr.reported_at DESC \n                  LIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Citizen Reports",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 36,
+  "tags": [
+    "ncg",
+    "monitoring"
+  ],
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "NammaClimaGrid Monitoring",
+  "uid": "ncg-monitoring",
+  "version": 1
+}

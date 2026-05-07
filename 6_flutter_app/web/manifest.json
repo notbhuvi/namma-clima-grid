@@ -1,0 +1,35 @@
+{
+    "name": "NammaClimaGrid",
+    "short_name": "NammaClima",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#1B6B3A",
+    "theme_color": "#1B6B3A",
+    "description": "Bengaluru real-time urban heat and flood risk intelligence platform",
+    "orientation": "any",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
