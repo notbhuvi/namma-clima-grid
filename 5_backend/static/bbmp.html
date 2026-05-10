@@ -299,8 +299,8 @@
              autocomplete="email" onkeydown="if(event.key==='Enter')attemptLogin()" />
     </div>
     <div class="field-group">
-      <label>Password</label>
-      <input type="password" id="login-password" placeholder="••••••••"
+      <label>Admin Access Token</label>
+      <input type="password" id="login-password" placeholder="Paste ADMIN_API_KEY"
              autocomplete="current-password" onkeydown="if(event.key==='Enter')attemptLogin()" />
     </div>
 
@@ -460,16 +460,15 @@
 
 <script>
   // ── Auth gate ────────────────────────────────────────────────────────────
-  const VALID_EMAIL    = 'admin@bbmp.gov';
-  const VALID_PASSWORD = 'admin123';
   const SESSION_KEY    = 'ncg_bbmp_session';
 
   function checkSession() {
     const s = sessionStorage.getItem(SESSION_KEY);
     if (s) {
       try {
-        const { email, exp } = JSON.parse(s);
+        const { email, token, exp } = JSON.parse(s);
         if (exp > Date.now()) {
+          window.NCG_ADMIN_TOKEN = token;
           unlockDashboard(email, false);
           return;
         }
@@ -487,7 +486,7 @@
     const errMsg  = document.getElementById('login-error-msg');
 
     const email = emailEl.value.trim().toLowerCase();
-    const pass  = passEl.value;
+    const token = passEl.value.trim();
 
     // Clear previous errors
     errBox.classList.remove('show');
@@ -506,27 +505,23 @@
     btn.disabled = true;
     btn.textContent = 'Verifying…';
 
-    setTimeout(() => {
-      if (email === VALID_EMAIL && pass === VALID_PASSWORD) {
-        // Store session (expires in 8 hours)
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-          email,
-          exp: Date.now() + 8 * 60 * 60 * 1000,
-        }));
-        unlockDashboard(email, true);
-      } else {
-        btn.disabled = false;
-        btn.textContent = 'Sign In →';
-        emailEl.classList.add('error');
-        passEl.classList.add('error');
-        errMsg.textContent = email !== VALID_EMAIL
-          ? 'Email not recognised. Use your official BBMP email.'
-          : 'Incorrect password. Please try again.';
-        errBox.classList.add('show');
-        passEl.value = '';
-        passEl.focus();
-      }
-    }, 600); // brief delay feels more "real"
+    if (!token) {
+      btn.disabled = false;
+      btn.textContent = 'Sign In →';
+      passEl.classList.add('error');
+      errMsg.textContent = 'Enter your admin access token.';
+      errBox.classList.add('show');
+      passEl.focus();
+      return;
+    }
+
+    window.NCG_ADMIN_TOKEN = token;
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+      email,
+      token,
+      exp: Date.now() + 8 * 60 * 60 * 1000,
+    }));
+    unlockDashboard(email, true);
   }
 
   function unlockDashboard(email, animate) {
@@ -585,7 +580,7 @@
 
   // ── Fetch helpers ──────────────────────────────────────────────────────────
   async function get(path) {
-    const r = await fetch(API + path);
+    const r = await fetch(API + path, { headers: authHeaders() });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} (GET ${path})`);
     return r.json();
   }
@@ -593,7 +588,7 @@
   async function post(path, body) {
     const r = await fetch(API + path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
     });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} (POST ${path})`);
@@ -601,9 +596,13 @@
   }
 
   async function del(path) {
-    const r = await fetch(API + path, { method: 'DELETE' });
+    const r = await fetch(API + path, { method: 'DELETE', headers: authHeaders() });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} (DELETE ${path})`);
     return r.json();
+  }
+
+  function authHeaders() {
+    return window.NCG_ADMIN_TOKEN ? { Authorization: `Bearer ${window.NCG_ADMIN_TOKEN}` } : {};
   }
 
   // ── KPI bar ───────────────────────────────────────────────────────────────

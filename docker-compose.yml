@@ -189,36 +189,36 @@ services:
 
   # ---------------------------------------------------------------------------
   # FastAPI backend — ward stress + forecast + intervention endpoints
-  # NOTE: Uncomment once Module 5 is built (3_backend_api/ must exist).
   # ---------------------------------------------------------------------------
-  # api:
-  #   build:
-  #     context: ./3_backend_api
-  #     dockerfile: Dockerfile
-  #   container_name: ncg-api
-  #   hostname: api
-  #   networks: [namma-net]
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
-  #   ports:
-  #     - "8000:8000"
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     POSTGRES_HOST: postgres
-  #     REDIS_HOST: redis
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-  #     MLFLOW_TRACKING_URI: http://mlflow:5000
-  #   volumes:
-  #     - ./3_backend_api:/app
-  #     - ./8_data:/data/static
-  #     - delta-lake-data:/data/delta
-  #   restart: unless-stopped
+  api:
+    build:
+      context: .
+      dockerfile: 5_backend/Dockerfile
+    container_name: ncg-api
+    hostname: api
+    networks: [namma-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      NCG_ENV: docker
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:8000}
+    volumes:
+      - ./6_flutter_app/build/web:/app/6_flutter_app/build/web:ro
+      - delta-lake-data:/data/delta
+    restart: unless-stopped
 
   # ---------------------------------------------------------------------------
   # Apache Airflow — orchestrates daily satellite + feature pipelines

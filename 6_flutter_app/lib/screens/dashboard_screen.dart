@@ -228,7 +228,6 @@ class _LiveBanner extends ConsumerWidget {
         final src = resp.source ?? '';
         final isLiveDb      = src == 'postgresql_live';
         final isLiveWeather = src == 'live_weather';
-        final isAnyLive     = isLiveDb || isLiveWeather;
         final dotColor  = isLiveDb ? Colors.green : isLiveWeather ? Colors.blue : Colors.orange;
         final bgColor   = isLiveDb ? Colors.green.shade50 : isLiveWeather ? Colors.blue.shade50 : Colors.orange.shade50;
         final label     = isLiveDb

@@ -15,9 +15,10 @@ import math
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
+from auth import require_role
 from services import get_ward_risks_cached, get_interventions_cached
 
 router = APIRouter(prefix="/bbmp", tags=["bbmp"])
@@ -35,10 +36,13 @@ class BroadcastAlertRequest(BaseModel):
 
 
 @router.post("/broadcast-alert")
-async def broadcast_alert(body: BroadcastAlertRequest):
+async def broadcast_alert(
+    body: BroadcastAlertRequest,
+    _auth = Depends(require_role("admin")),
+):
     """
     BBMP officials send an alert to all connected citizen app users.
-    Requires the official to be authenticated (enforced on the dashboard side).
+    Requires an admin bearer token.
     """
     from routes.websocket import inject_alert
     from datetime import datetime, timezone

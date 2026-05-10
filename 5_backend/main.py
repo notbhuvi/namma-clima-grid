@@ -43,6 +43,7 @@ _MODULE_DIR = Path(__file__).resolve().parent
 if str(_MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(_MODULE_DIR))
 
+from config import get_settings
 from schemas  import HealthResponse
 from services import init_services, shutdown_services, get_health
 
@@ -95,11 +96,14 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS — allow Flutter web and local dev
+_settings = get_settings()
+
+# CORS — explicit by default; use ALLOW_ALL_CORS=true only for local experiments.
+_cors_origins = ["*"] if _settings.allow_all_cors else list(_settings.cors_origins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=not _settings.allow_all_cors,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -121,8 +125,13 @@ def _check_postgres() -> bool:
     """Quick liveness check for PostgreSQL."""
     try:
         import psycopg2  # type: ignore
+        settings = get_settings()
         conn = psycopg2.connect(
-            "postgresql://ncg_user:change_me_in_production@localhost:5432/namma_clima_grid",
+            host=settings.postgres_host,
+            port=settings.postgres_port,
+            dbname=settings.postgres_db,
+            user=settings.postgres_user,
+            password=settings.postgres_password,
             connect_timeout=2,
         )
         conn.close()
@@ -136,8 +145,9 @@ def _check_kafka() -> bool:
     try:
         from kafka import KafkaAdminClient  # type: ignore
         from kafka.errors import NoBrokersAvailable  # type: ignore
+        settings = get_settings()
         admin = KafkaAdminClient(
-            bootstrap_servers="localhost:9092",
+            bootstrap_servers=settings.kafka_bootstrap_servers,
             request_timeout_ms=2000,
             api_version_auto_timeout_ms=2000,
         )
@@ -172,8 +182,11 @@ async def health():
     postgres_ok = _check_postgres()
     kafka_ok    = _check_kafka()
     model_files = _check_model_files()
+    settings = get_settings()
 
-    overall_status = "ok" if postgres_ok else "degraded"
+    models_ok = all(info["models_loaded"].values())
+    deps_ok = postgres_ok and kafka_ok
+    overall_status = "ok" if models_ok and (deps_ok or not settings.require_external_services) else "degraded"
 
     return {
         "status":        overall_status,
@@ -181,6 +194,7 @@ async def health():
         "uptime_sec":    info["uptime_sec"],
         "models_loaded": info["models_loaded"],
         "model_files":   model_files,
+        "environment":   settings.environment,
         "dependencies": {
             "postgres": "ok" if postgres_ok else "unavailable",
             "kafka":    "ok" if kafka_ok    else "unavailable",

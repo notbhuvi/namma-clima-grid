@@ -15,15 +15,15 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
+
+from auth import require_role
+from config import get_settings
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
-POSTGRES_DSN  = "postgresql://ncg_user:change_me_in_production@localhost:5432/namma_clima_grid"
-KAFKA_SERVERS = "localhost:9092"
-KAFKA_TOPIC   = "citizen-reports"
-UPLOAD_DIR    = os.path.join(os.path.dirname(__file__), "..", "static", "uploads")
+UPLOAD_DIR = str(get_settings().upload_dir)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -98,7 +98,7 @@ def _save_report(
         raise HTTPException(status_code=500, detail="psycopg2 not installed")
 
     try:
-        conn = psycopg2.connect(POSTGRES_DSN)
+        conn = psycopg2.connect(get_settings().postgres_dsn)
         _ensure_table(conn)
         with conn.cursor() as cur:
             cur.execute("""
@@ -258,11 +258,11 @@ async def submit_report_with_image(
 # ---------------------------------------------------------------------------
 
 @router.get("/recent")
-async def recent_reports(limit: int = 20):
+async def recent_reports(limit: int = 20, _auth = Depends(require_role("admin"))):
     """Return the most recent citizen reports for the BBMP dashboard."""
     try:
         import psycopg2
-        conn = psycopg2.connect(POSTGRES_DSN)
+        conn = psycopg2.connect(get_settings().postgres_dsn)
         _ensure_table(conn)
         # Ensure new columns exist before querying them
         with conn.cursor() as cur:
@@ -314,14 +314,14 @@ async def recent_reports(limit: int = 20):
 # ---------------------------------------------------------------------------
 
 @router.delete("/{report_id}")
-async def delete_report(report_id: int):
+async def delete_report(report_id: int, _auth = Depends(require_role("admin"))):
     """
     BBMP officials can permanently delete a citizen report.
     Also clears any associated feedback entry.
     """
     try:
         import psycopg2
-        conn = psycopg2.connect(POSTGRES_DSN)
+        conn = psycopg2.connect(get_settings().postgres_dsn)
         _ensure_table(conn)
         with conn.cursor() as cur:
             # Fetch image_url first (to optionally delete file)
@@ -363,14 +363,14 @@ async def delete_report(report_id: int):
 # ---------------------------------------------------------------------------
 
 @router.post("/{report_id}/flag-fake")
-async def flag_fake(report_id: int):
+async def flag_fake(report_id: int, _auth = Depends(require_role("admin"))):
     """
     BBMP marks a citizen report as fake/incorrect.
     Feedback is recorded and the classifier bias is updated immediately.
     """
     try:
         import psycopg2
-        conn = psycopg2.connect(POSTGRES_DSN)
+        conn = psycopg2.connect(get_settings().postgres_dsn)
         _ensure_table(conn)
 
         # Ensure columns exist
@@ -427,14 +427,14 @@ async def flag_fake(report_id: int):
 # ---------------------------------------------------------------------------
 
 @router.post("/{report_id}/confirm-real")
-async def confirm_real(report_id: int):
+async def confirm_real(report_id: int, _auth = Depends(require_role("admin"))):
     """
     BBMP confirms a citizen report is genuine flood.
     Provides positive feedback to the classifier.
     """
     try:
         import psycopg2
-        conn = psycopg2.connect(POSTGRES_DSN)
+        conn = psycopg2.connect(get_settings().postgres_dsn)
         _ensure_table(conn)
 
         with conn.cursor() as cur:
@@ -489,7 +489,7 @@ async def confirm_real(report_id: int):
 # ---------------------------------------------------------------------------
 
 @router.get("/model-stats")
-async def model_stats():
+async def model_stats(_auth = Depends(require_role("admin"))):
     """Return current classifier feedback stats."""
     from image_classifier import get_feedback_stats
     return get_feedback_stats()
@@ -506,7 +506,7 @@ async def ward_report_count(ward_id: int, days: int = 7):
 
     try:
         import psycopg2
-        conn = psycopg2.connect(POSTGRES_DSN)
+        conn = psycopg2.connect(get_settings().postgres_dsn)
         _ensure_table(conn)
         with conn.cursor() as cur:
             cur.execute("""

@@ -1,0 +1,80 @@
+{
+  "generated_at": "2026-05-10T16:22:01.932391+00:00",
+  "dataset": "synthetic_ward_features",
+  "data_quality": {
+    "status": "pass",
+    "row_count": 198,
+    "column_count": 16,
+    "null_counts": {},
+    "range_violations": {},
+    "correlations": {
+      "heat_vs_lst": 0.9196,
+      "flood_vs_rain": 0.2254,
+      "heat_vs_impervious": 0.3436
+    },
+    "issues": [],
+    "summary_stats": {
+      "lst_celsius": {
+        "min": 24.08,
+        "mean": 33.839797979797986,
+        "max": 44.44
+      },
+      "ndvi": {
+        "min": 0.02,
+        "mean": 0.26057575757575757,
+        "max": 0.527
+      },
+      "impervious_pct": {
+        "min": 40.6,
+        "mean": 65.90686868686869,
+        "max": 93.89
+      },
+      "rainfall_mm_24h": {
+        "min": 0.04,
+        "mean": 2.0209595959595963,
+        "max": 8.93
+      },
+      "heat_stress_score": {
+        "min": 28.6,
+        "mean": 55.17212121212122,
+        "max": 85.85
+      },
+      "flood_risk_score": {
+        "min": 20.85,
+        "mean": 32.71611111111112,
+        "max": 46.98
+      }
+    }
+  },
+  "model_evaluation": {
+    "status": "pass",
+    "models": {
+      "thermal_vision": {
+        "path": "2_thermal_vision/checkpoints/best_model.pt",
+        "exists": true,
+        "size_mb": 113.79,
+        "metadata": {
+          "epoch": 5,
+          "val_rmse": 0.890680193901062
+        }
+      },
+      "st_gnn": {
+        "path": "3_st_gnn/checkpoints/gnn_best.pt",
+        "exists": true,
+        "size_mb": 3.63,
+        "metadata": {
+          "epoch": 8
+        }
+      },
+      "rl_optimizer": {
+        "path": "4_rl_optimizer/checkpoints/ppo_best.pt",
+        "exists": true,
+        "size_mb": 201.12,
+        "metadata": {
+          "ep_reward_mean": 267.45561663607685
+        }
+      }
+    },
+    "issues": []
+  }
+}

@@ -190,13 +190,17 @@ cmd_status() {
 
     # Services
     echo "Services:"
-    _http_ok "http://localhost:8000/health" && \
+    _http_ok "http://localhost:8000/api" && \
         echo "  FastAPI backend: UP  → http://localhost:8000/docs" || \
         _yellow "  FastAPI backend: DOWN"
 
-    _http_ok "http://localhost:3001/" && \
-        echo "  Flutter app:     UP  → http://localhost:3001" || \
+    if _http_ok "http://localhost:3001/"; then
+        echo "  Flutter app:     UP  → http://localhost:3001"
+    elif _http_ok "http://localhost:8000/"; then
+        echo "  Flutter app:     UP  → http://localhost:8000  (served by FastAPI)"
+    else
         _yellow "  Flutter app:     DOWN"
+    fi
 
     _http_ok "http://localhost:5001/" && \
         echo "  MLflow:          UP  → http://localhost:5001" || \
