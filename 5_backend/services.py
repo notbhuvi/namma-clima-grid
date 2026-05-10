@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
+from config import get_settings
+
 _MODULE_DIR   = Path(__file__).resolve().parent
 _PROJECT_ROOT = _MODULE_DIR.parent
 
@@ -113,6 +115,16 @@ def init_services() -> None:
     Each model uses its own fallback chain (checkpoint → MLflow → untrained).
     """
     _state.started_at = time.time()
+    settings = get_settings()
+
+    if settings.skip_model_load:
+        _state.models_loaded = {
+            "thermal_vision": False,
+            "st_gnn": False,
+            "rl_optimizer": False,
+        }
+        logger.warning("NCG_SKIP_MODEL_LOAD=true — starting API without ML checkpoints")
+        return
 
     # Module 2 — Thermal Vision
     try:
@@ -225,14 +237,14 @@ def _read_ward_risks_from_db(ward_ids: Optional[List[int]] = None) -> Optional[p
     Returns None if the table is empty or unavailable.
     """
     try:
-        import os
         import psycopg2
+        settings = get_settings()
         conn = psycopg2.connect(
-            host=os.getenv("POSTGRES_HOST", "localhost"),
-            port=int(os.getenv("POSTGRES_PORT", 5432)),
-            dbname=os.getenv("POSTGRES_DB", "namma_clima_grid"),
-            user=os.getenv("POSTGRES_USER", "ncg_user"),
-            password=os.getenv("POSTGRES_PASSWORD", "change_me_in_production"),
+            host=settings.postgres_host,
+            port=settings.postgres_port,
+            dbname=settings.postgres_db,
+            user=settings.postgres_user,
+            password=settings.postgres_password,
         )
         where = ""
         params: list = []
@@ -296,13 +308,14 @@ def _weather_features_to_risk(ward_ids: Optional[List[int]] = None) -> Optional[
 
     # ── Fallback: try PostgreSQL weather_readings ────────────────────────
     try:
-        import os, psycopg2
+        import psycopg2
+        settings = get_settings()
         conn = psycopg2.connect(
-            host=os.getenv("POSTGRES_HOST", "localhost"),
-            port=int(os.getenv("POSTGRES_PORT", 5432)),
-            dbname=os.getenv("POSTGRES_DB", "namma_clima_grid"),
-            user=os.getenv("POSTGRES_USER", "ncg_user"),
-            password=os.getenv("POSTGRES_PASSWORD", "change_me_in_production"),
+            host=settings.postgres_host,
+            port=settings.postgres_port,
+            dbname=settings.postgres_db,
+            user=settings.postgres_user,
+            password=settings.postgres_password,
             connect_timeout=2,
         )
         weather_sql = """

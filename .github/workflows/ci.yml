@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-smoke:
+    runs-on: ubuntu-latest
+    env:
+      NCG_SKIP_MODEL_LOAD: "true"
+      NCG_SKIP_KAFKA_CONSUMER: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r 5_backend/requirements-dev.txt
+
+      - name: Compile backend
+        run: python -m compileall -q 5_backend
+
+      - name: Run backend smoke tests
+        run: pytest -q 5_backend/tests
+
+  flutter-static-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.x"
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        working-directory: 6_flutter_app
+        run: flutter pub get
+
+      - name: Analyze Flutter app
+        working-directory: 6_flutter_app
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        working-directory: 6_flutter_app
+        run: flutter test

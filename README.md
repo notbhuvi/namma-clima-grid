@@ -62,6 +62,7 @@ Services started:
 
 | Service | URL |
 |---------|-----|
+| FastAPI backend | `http://localhost:8000` |
 | Kafka broker | `localhost:9092` |
 | PostgreSQL | `localhost:5432` |
 | Redis | `localhost:6379` |
@@ -116,6 +117,21 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Visit `http://localhost:8000/docs` for the interactive Swagger UI.
+
+### 6.1 Operational smoke tests
+
+The backend has a lightweight smoke suite that skips model loading and Kafka
+threads so it can run quickly in CI:
+
+```bash
+NCG_SKIP_MODEL_LOAD=true NCG_SKIP_KAFKA_CONSUMER=true \
+  python -m pytest -q 5_backend/tests
+```
+
+The Docker Compose file now includes the real Module 5 API service. For
+production-like deployments, set `REQUIRE_EXTERNAL_SERVICES=true`,
+`ALLOW_ALL_CORS=false`, and provide explicit `CORS_ORIGINS`, database,
+Kafka, and secret values through environment variables.
 
 ### 7. Run the Flutter app
 

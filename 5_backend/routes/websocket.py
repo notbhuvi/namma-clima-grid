@@ -30,6 +30,7 @@ from typing import List, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 
+from config import get_settings
 from services import generate_alerts
 
 router = APIRouter(tags=["websocket"])
@@ -44,8 +45,6 @@ ALERT_INTERVAL_SEC = 15
 # Kafka consumer thread handle
 _kafka_thread: threading.Thread | None = None
 _kafka_stop_event = threading.Event()
-KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
-KAFKA_ALERTS_TOPIC = "climate-alerts"
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +99,9 @@ def start_alert_background_task() -> None:
     if _alert_task is None:
         _alert_task = asyncio.create_task(_alert_loop())
         logger.info("Alert broadcast background task started")
+    if get_settings().skip_kafka_consumer:
+        logger.info("NCG_SKIP_KAFKA_CONSUMER=true — Kafka alert consumer disabled")
+        return
     _start_kafka_consumer_thread()
 
 
@@ -133,9 +135,10 @@ def _kafka_consumer_thread(loop: asyncio.AbstractEventLoop) -> None:
 
     consumer = None
     try:
+        settings = get_settings()
         consumer = KafkaConsumer(
-            KAFKA_ALERTS_TOPIC,
-            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+            settings.kafka_alerts_topic,
+            bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id="ncg-ws-alert-forwarder",
             auto_offset_reset="latest",
             consumer_timeout_ms=1000,       # poll timeout; allows stop check
@@ -144,7 +147,7 @@ def _kafka_consumer_thread(loop: asyncio.AbstractEventLoop) -> None:
             api_version_auto_timeout_ms=5000,
         )
         logger.info(
-            f"Kafka consumer connected to topic '{KAFKA_ALERTS_TOPIC}' — "
+            f"Kafka consumer connected to topic '{settings.kafka_alerts_topic}' — "
             "forwarding alerts to WebSocket clients"
         )
     except NoBrokersAvailable:
