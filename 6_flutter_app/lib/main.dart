@@ -68,7 +68,7 @@ class _NammaClimaGridAppState extends ConsumerState<NammaClimaGridApp> {
         ),
         elevation: 0,
       ),
-      cardTheme: CardThemeData(
+      cardTheme: base.cardTheme.copyWith(
         elevation: 2,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
