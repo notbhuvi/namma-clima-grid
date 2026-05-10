@@ -23,6 +23,7 @@ Operational checks:
 curl -fsS http://localhost:8000/health
 NCG_SKIP_MODEL_LOAD=true NCG_SKIP_KAFKA_CONSUMER=true python -m pytest -q 5_backend/tests
 python 8_mlops/generate_quality_reports.py
+python 8_mlops/generate_quality_reports.py --input /path/to/real_ward_features.parquet
 ```
 
 The BBMP dashboard no longer contains a hardcoded browser password. Officials

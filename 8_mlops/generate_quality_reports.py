@@ -47,7 +47,16 @@ def _to_jsonable(value: Any) -> Any:
     return str(value)
 
 
-def load_features(seed: int, monsoon: bool):
+def load_features(seed: int, monsoon: bool, input_path: Path | None = None):
+    if input_path is not None:
+        import pandas as pd
+
+        if input_path.suffix.lower() == ".csv":
+            return pd.read_csv(input_path)
+        if input_path.suffix.lower() in {".parquet", ".pq"}:
+            return pd.read_parquet(input_path)
+        raise ValueError("--input must be a .csv or .parquet file")
+
     from mock_ward_features import generate_ward_features
 
     return generate_ward_features(seed=seed, monsoon=monsoon)
@@ -199,14 +208,15 @@ def write_reports(payload: dict[str, Any], out_dir: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=ROOT / "reports" / "industry_readiness")
+    parser.add_argument("--input", type=Path, help="Optional real ward feature CSV/Parquet to validate")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--monsoon", action="store_true")
     args = parser.parse_args()
 
-    df = load_features(seed=args.seed, monsoon=args.monsoon)
+    df = load_features(seed=args.seed, monsoon=args.monsoon, input_path=args.input)
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "dataset": "synthetic_ward_features",
+        "dataset": str(args.input) if args.input else "synthetic_ward_features",
         "data_quality": data_quality(df),
         "model_evaluation": model_report(),
     }
