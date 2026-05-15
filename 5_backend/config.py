@@ -53,6 +53,8 @@ class Settings:
     auth_required: bool
     admin_api_key: str
     research_api_key: str
+    ward_risk_max_age_minutes: int
+    ward_risk_min_fresh_ratio: float
 
     @property
     def postgres_dsn(self) -> str:
@@ -89,4 +91,6 @@ def get_settings() -> Settings:
         auth_required=_bool_env("AUTH_REQUIRED", False),
         admin_api_key=os.getenv("ADMIN_API_KEY", ""),
         research_api_key=os.getenv("RESEARCH_API_KEY", ""),
+        ward_risk_max_age_minutes=int(os.getenv("WARD_RISK_MAX_AGE_MINUTES", "60")),
+        ward_risk_min_fresh_ratio=float(os.getenv("WARD_RISK_MIN_FRESH_RATIO", "0.95")),
     )

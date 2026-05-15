@@ -1,1 +1,44 @@
-[]
+[
+  {
+    "report_id": 31,
+    "label": "real",
+    "image_path": "/Users/bhuvanesh/namma-clima-grid/5_backend/static/uploads/report_94917a7db28d.jpg",
+    "flagged_at": "2026-05-14T19:22:23.189483+00:00"
+  },
+  {
+    "report_id": 32,
+    "label": "real",
+    "image_path": "/Users/bhuvanesh/namma-clima-grid/5_backend/static/uploads/report_d9c79b529540.jpg",
+    "flagged_at": "2026-05-14T19:22:57.742387+00:00"
+  },
+  {
+    "report_id": 33,
+    "label": "real",
+    "image_path": "/Users/bhuvanesh/namma-clima-grid/5_backend/static/uploads/report_a5653bfaf52e.jpg",
+    "flagged_at": "2026-05-15T04:36:48.221506+00:00"
+  },
+  {
+    "report_id": 34,
+    "label": "real",
+    "image_path": "/Users/bhuvanesh/namma-clima-grid/5_backend/static/uploads/report_ba35a473d155.jpg",
+    "flagged_at": "2026-05-15T04:37:21.757476+00:00"
+  },
+  {
+    "report_id": 35,
+    "label": "real",
+    "image_path": "/Users/bhuvanesh/namma-clima-grid/5_backend/static/uploads/report_bfcb0a46d4e5.jpg",
+    "flagged_at": "2026-05-15T04:40:53.720440+00:00"
+  },
+  {
+    "report_id": 36,
+    "label": "fake",
+    "image_path": "/Users/bhuvanesh/namma-clima-grid/5_backend/static/uploads/report_04a029ac5438.jpg",
+    "flagged_at": "2026-05-15T04:46:44.777230+00:00"
+  },
+  {
+    "report_id": 37,
+    "label": "real",
+    "image_path": "/Users/bhuvanesh/namma-clima-grid/5_backend/static/uploads/report_2eb46e585fc4.jpg",
+    "flagged_at": "2026-05-15T06:13:46.745107+00:00"
+  }
+]

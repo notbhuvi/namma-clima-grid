@@ -15,6 +15,7 @@ Design principles:
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import sys
 import time
@@ -103,6 +104,128 @@ class _State:
 
 
 _state = _State()
+
+
+# ---------------------------------------------------------------------------
+# Model evidence / prediction confidence
+# ---------------------------------------------------------------------------
+
+def prediction_confidence(source: Optional[str], models_loaded: Optional[Dict[str, bool]] = None) -> dict:
+    """
+    Explain how much trust to place in a prediction based on the data path.
+
+    This is intentionally conservative: a demo fallback should still work, but
+    the API must say clearly when it is lower-confidence than live/satellite
+    data.  Scores are communication aids, not calibrated probabilities.
+    """
+    models = models_loaded or _state.models_loaded or {}
+    source = source or "model_generated"
+
+    if source == "postgresql_live":
+        score = 0.90 if models.get("st_gnn") else 0.80
+        tier = "high"
+        reason = "Fresh PostgreSQL ward risk scores from the live pipeline."
+    elif "GEE" in source or "Landsat" in source:
+        score = 0.82 if models.get("st_gnn") else 0.72
+        tier = "high"
+        reason = "Live weather is combined with satellite-derived ward features."
+    elif source == "live_weather":
+        score = 0.65 if models.get("st_gnn") else 0.55
+        tier = "medium"
+        reason = "Live weather is available, but some ward features use defaults or cached values."
+    else:
+        score = 0.35
+        tier = "low"
+        reason = "Demo fallback uses deterministic synthetic/model-generated ward features."
+
+    if not all(models.get(k, False) for k in ("thermal_vision", "st_gnn", "rl_optimizer")):
+        reason += " One or more trained checkpoints are not loaded in this runtime."
+
+    return {
+        "tier": tier,
+        "score": round(score, 2),
+        "source": source,
+        "reason": reason,
+        "models_loaded": {
+            "thermal_vision": bool(models.get("thermal_vision", False)),
+            "st_gnn": bool(models.get("st_gnn", False)),
+            "rl_optimizer": bool(models.get("rl_optimizer", False)),
+        },
+    }
+
+
+def get_model_validation_summary_sync() -> dict:
+    """
+    Return model/data evidence used for demos and viva defence.
+
+    The endpoint is deliberately honest about the current evidence level:
+    checkpoint metadata and quality-report metrics exist, but official BBMP
+    historical validation is still a deployment requirement.
+    """
+    report_path = _PROJECT_ROOT / "reports" / "industry_readiness" / "quality_report.json"
+    report: dict = {}
+    if report_path.exists():
+        try:
+            report = json.loads(report_path.read_text())
+        except Exception as exc:
+            report = {"load_error": str(exc)}
+
+    model_eval = report.get("model_evaluation", {})
+    data_quality = report.get("data_quality", {})
+    models = model_eval.get("models", {})
+
+    thermal_meta = models.get("thermal_vision", {}).get("metadata", {})
+    rl_meta = models.get("rl_optimizer", {}).get("metadata", {})
+
+    return {
+        "evidence_level": "prototype_synthetic_validation",
+        "important_caveat": (
+            "Metrics are from synthetic/demo ward features and checkpoint metadata. "
+            "Production deployment needs official BBMP GIS, calibrated satellite history, "
+            "IoT feeds, and historical flood/temperature validation."
+        ),
+        "data_quality": {
+            "dataset": report.get("dataset", "unknown"),
+            "status": data_quality.get("status", "unknown"),
+            "row_count": data_quality.get("row_count"),
+            "issues": data_quality.get("issues", []),
+            "correlations": data_quality.get("correlations", {}),
+        },
+        "model_metrics": {
+            "cnn_vit_thermal": {
+                "task": "Land Surface Temperature regression",
+                "metric": "validation_rmse_celsius",
+                "value": thermal_meta.get("val_rmse"),
+                "source": "thermal_vision checkpoint metadata",
+            },
+            "st_gnn": {
+                "task": "Ward heat/flood risk prediction",
+                "metric": "checkpoint_present_and_smoke_tested",
+                "value": bool(models.get("st_gnn", {}).get("exists", False)),
+                "source": "quality report + API smoke tests",
+            },
+            "ppo_optimizer": {
+                "task": "Budgeted intervention allocation",
+                "metric": "training_episode_reward_mean",
+                "value": rl_meta.get("ep_reward_mean"),
+                "source": "rl_optimizer checkpoint metadata",
+            },
+            "citizen_image_classifier": {
+                "task": "Flood/waterlogging image triage",
+                "metric": "prototype_rule_based_classifier",
+                "value": "feedback-adjusted image-feature detector",
+                "source": "image_classifier.py; upgrade path is MobileNet/EfficientNet with labelled images",
+            },
+        },
+        "feature_importance_summary": [
+            {"feature": "lst_celsius", "role": "primary heat driver"},
+            {"feature": "ndvi", "role": "vegetation cooling and runoff retention"},
+            {"feature": "impervious_pct", "role": "heat absorption and runoff driver"},
+            {"feature": "rainfall_mm_24h", "role": "primary flood trigger"},
+            {"feature": "pm25_ugm3", "role": "urban activity / exposure proxy"},
+        ],
+        "runtime_confidence": prediction_confidence("model_generated"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +396,19 @@ def _read_ward_risks_from_db(ward_ids: Optional[List[int]] = None) -> Optional[p
         conn.close()
         if df.empty:
             return None
+        max_age_minutes = settings.ward_risk_max_age_minutes
+        if max_age_minutes > 0 and "updated_at" in df.columns:
+            timestamps = pd.to_datetime(df["updated_at"], utc=True, errors="coerce")
+            cutoff = pd.Timestamp(datetime.now(timezone.utc)) - pd.Timedelta(minutes=max_age_minutes)
+            fresh_ratio = float((timestamps >= cutoff).mean()) if len(timestamps) else 0.0
+            newest = timestamps.max()
+            if pd.isna(newest) or fresh_ratio < settings.ward_risk_min_fresh_ratio:
+                logger.info(
+                    "PostgreSQL ward_risk_scores skipped: "
+                    f"fresh_ratio={fresh_ratio:.2f}, required={settings.ward_risk_min_fresh_ratio:.2f}, "
+                    f"newest={newest}, cutoff={cutoff}"
+                )
+                return None
         logger.debug(f"Loaded {len(df)} ward risk rows from PostgreSQL (updated: {df['updated_at'].max()})")
         return df
     except Exception as exc:
@@ -294,7 +430,9 @@ def _weather_features_to_risk(ward_ids: Optional[List[int]] = None) -> Optional[
         if df is not None and not df.empty:
             # Only rename rainfall — GNN needs lst_celsius (not lst_pred_celsius)
             df = df.rename(columns={"rainfall_mm": "rainfall_mm_24h"})
-            df["data_source"] = "live_weather"
+            satellite_sources = set(df.get("satellite_source", pd.Series(dtype=str)).dropna().astype(str))
+            has_real_satellite = any("GEE" in src or "Landsat" in src for src in satellite_sources)
+            df["data_source"] = "live_weather+GEE-Landsat" if has_real_satellite else "live_weather"
             if ward_ids:
                 df = df[df["ward_id"].isin(ward_ids)]
             logger.info(
@@ -378,11 +516,17 @@ def get_ward_risks_sync(ward_ids: Optional[List[int]] = None) -> pd.DataFrame:
             try:
                 result = _state.st_gnn.predict_snapshot(live_features)
                 result["ward_name"]  = result["ward_id"].map(names)
-                result["data_source"] = "live_weather"
+                result["data_source"] = live_features["data_source"].iloc[0] if "data_source" in live_features.columns else "live_weather"
                 # Attach real temperature/rainfall for the API response
-                weather_cols = live_features[["ward_id", "temperature_c",
-                                              "rainfall_mm_24h", "humidity_pct"]].copy()
+                attach_cols = [
+                    "ward_id", "temperature_c", "rainfall_mm_24h", "humidity_pct",
+                    "ndvi", "impervious_pct", "lst_celsius",
+                    "satellite_source", "satellite_scene_date",
+                ]
+                weather_cols = live_features[[col for col in attach_cols if col in live_features.columns]].copy()
                 result = result.merge(weather_cols, on="ward_id", how="left")
+                if "lst_celsius" in result.columns and "lst_pred_celsius" not in result.columns:
+                    result["lst_pred_celsius"] = result["lst_celsius"]
                 if ward_ids:
                     result = result[result["ward_id"].isin(ward_ids)]
                 logger.info("Serving ST-GNN predictions on live Open-Meteo weather features")
@@ -591,6 +735,135 @@ def _heuristic_recommendations(
         rank  += 1
 
     return results
+
+
+def _recommendation_totals(recs: List[dict]) -> dict:
+    """Aggregate recommendation impact for comparison endpoints."""
+    cost = sum(int(r.get("cost", 0)) for r in recs)
+    heat = sum(float(r.get("expected_heat_reduction", 0.0)) for r in recs)
+    flood = sum(float(r.get("expected_flood_reduction", 0.0)) for r in recs)
+    weighted = 0.6 * heat + 0.4 * flood
+    return {
+        "recommendations": len(recs),
+        "budget_used": cost,
+        "expected_heat_reduction_total": round(heat, 2),
+        "expected_flood_reduction_total": round(flood, 2),
+        "weighted_risk_reduction": round(weighted, 2),
+        "reduction_per_budget_unit": round(weighted / cost, 3) if cost else 0.0,
+    }
+
+
+def _greedy_baseline_recommendations(df: pd.DataFrame, budget: int, top_k: int) -> List[dict]:
+    """
+    Immediate-impact baseline for PPO comparison.
+
+    Unlike the risk-profile heuristic, this enumerates all ward/intervention
+    pairs and greedily picks the best weighted reduction per cost unit.
+    """
+    intervention_map = [
+        {"name": "tree_planting",      "heat_red": 9.0,  "flood_red": 0.0,  "cost": 2},
+        {"name": "cool_pavement",      "heat_red": 10.0, "flood_red": 0.0,  "cost": 2},
+        {"name": "green_roof",         "heat_red": 5.6,  "flood_red": 0.0,  "cost": 3},
+        {"name": "permeable_pavement", "heat_red": 0.0,  "flood_red": 15.0, "cost": 4},
+        {"name": "urban_wetland",      "heat_red": 3.0,  "flood_red": 25.0, "cost": 6},
+    ]
+    names = _ward_catalogue()
+    candidates = []
+
+    for _, row in df.iterrows():
+        h = float(row["heat_stress_score"])
+        f = float(row["flood_risk_score"])
+        for iv in intervention_map:
+            heat_gain = min(iv["heat_red"], h)
+            flood_gain = min(iv["flood_red"], f)
+            weighted = 0.6 * heat_gain + 0.4 * flood_gain
+            candidates.append({
+                "ward_id": int(row["ward_id"]),
+                "ward_name": names.get(int(row["ward_id"])),
+                "intervention_type": iv["name"],
+                "expected_heat_reduction": iv["heat_red"],
+                "expected_flood_reduction": iv["flood_red"],
+                "cost": iv["cost"],
+                "ward_heat_stress": round(h, 1),
+                "ward_flood_risk": round(f, 1),
+                "_score": weighted / iv["cost"],
+                "_weighted": weighted,
+            })
+
+    candidates.sort(key=lambda item: (item["_score"], item["_weighted"]), reverse=True)
+    used_wards: set[int] = set()
+    spent = 0
+    results = []
+
+    for candidate in candidates:
+        if len(results) >= top_k or spent >= budget:
+            break
+        if candidate["ward_id"] in used_wards:
+            continue
+        if spent + candidate["cost"] > budget:
+            continue
+        used_wards.add(candidate["ward_id"])
+        spent += candidate["cost"]
+        candidate = {k: v for k, v in candidate.items() if not k.startswith("_")}
+        candidate["priority_rank"] = len(results) + 1
+        results.append(candidate)
+
+    return results
+
+
+def compare_optimizer_with_greedy_sync(
+    budget: int = 60,
+    top_k: int = 10,
+    ward_ids: Optional[List[int]] = None,
+) -> dict:
+    """Compare the current optimizer path against an immediate greedy baseline."""
+    current = get_ward_risks_sync(ward_ids)
+    optimizer_recs = get_recommendations_sync(budget=budget, top_k=top_k, ward_ids=ward_ids)
+    greedy_recs = _greedy_baseline_recommendations(current, budget=budget, top_k=top_k)
+
+    optimizer_method = "ppo_policy_or_hybrid" if _state.rl_optimizer is not None else "heuristic_fallback"
+    optimizer_totals = _recommendation_totals(optimizer_recs)
+    greedy_totals = _recommendation_totals(greedy_recs)
+
+    delta = {
+        "weighted_risk_reduction": round(
+            optimizer_totals["weighted_risk_reduction"] - greedy_totals["weighted_risk_reduction"], 2
+        ),
+        "reduction_per_budget_unit": round(
+            optimizer_totals["reduction_per_budget_unit"] - greedy_totals["reduction_per_budget_unit"], 3
+        ),
+    }
+
+    return {
+        "budget": budget,
+        "top_k": top_k,
+        "comparison_note": (
+            "Greedy baseline picks the best immediate reduction per cost. "
+            "PPO/hybrid recommendations can account for learned long-horizon policy when the RL checkpoint is loaded."
+        ),
+        "optimizer": {
+            "method": optimizer_method,
+            "totals": optimizer_totals,
+            "sample_recommendations": optimizer_recs[: min(5, len(optimizer_recs))],
+        },
+        "greedy_baseline": {
+            "method": "immediate_reduction_per_cost",
+            "totals": greedy_totals,
+            "sample_recommendations": greedy_recs[: min(5, len(greedy_recs))],
+        },
+        "optimizer_minus_greedy": delta,
+    }
+
+
+async def compare_optimizer_with_greedy(
+    budget: int = 60,
+    top_k: int = 10,
+    ward_ids: Optional[List[int]] = None,
+) -> dict:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None, compare_optimizer_with_greedy_sync, budget, top_k, ward_ids
+    )
 
 
 async def get_recommendations(

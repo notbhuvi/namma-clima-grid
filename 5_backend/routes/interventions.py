@@ -11,12 +11,13 @@ from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter
+from fastapi import Query
 
 from schemas import (
     InterventionRequest, InterventionResponse,
     RecommendedIntervention, InterventionType,
 )
-from services import get_recommendations
+from services import get_recommendations, compare_optimizer_with_greedy
 
 router = APIRouter(prefix="/interventions", tags=["interventions"])
 
@@ -118,3 +119,19 @@ async def recommend_interventions(body: InterventionRequest):
         budget_remaining=body.budget - total_cost,
         generated_at=datetime.now(timezone.utc),
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /interventions/optimizer-comparison
+# ---------------------------------------------------------------------------
+
+@router.get("/optimizer-comparison")
+async def optimizer_comparison(
+    budget: int = Query(60, ge=1, le=500),
+    top_k: int = Query(10, ge=1, le=50),
+):
+    """
+    Compare current optimizer recommendations against a transparent greedy
+    baseline. Useful for demos and model defensibility.
+    """
+    return await compare_optimizer_with_greedy(budget=budget, top_k=top_k)

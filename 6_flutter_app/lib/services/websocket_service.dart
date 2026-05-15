@@ -72,7 +72,12 @@ class WebSocketService {
           .map((e) => WardAlert.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      if (incoming.isEmpty) return;
+      if (incoming.isEmpty) {
+        if (!_controller.isClosed) {
+          _controller.add(List.unmodifiable(_alerts));
+        }
+        return;
+      }
 
       // Prepend new alerts, deduplicate, keep last 50
       final existingKeys = _alerts

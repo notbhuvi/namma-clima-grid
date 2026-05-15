@@ -3,464 +3,987 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BBMP Climate Risk — NammaClimaGrid</title>
+  <title>BBMP Climate Risk - NammaClimaGrid</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root {
-      --green:    #1B6B3A;
-      --green-lt: #e8f5ee;
-      --red:      #D32F2F;
-      --orange:   #F57C00;
-      --yellow:   #F9A825;
-      --blue:     #1565C0;
-      --grey:     #f5f5f5;
-      --text:     #1a1a1a;
-      --muted:    #666;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f0f4f0;
-      color: var(--text);
-      min-height: 100vh;
+      --canopy: #0f5f37;
+      --leaf: #1f8a4c;
+      --leaf-soft: #e6f4ea;
+      --moss: #cfe5cf;
+      --mist: #f3f8f4;
+      --soil: #5e4b32;
+      --text: #17231b;
+      --muted: #607064;
+      --line: rgba(19, 83, 48, .12);
+      --red: #d63c31;
+      --orange: #ed7d1a;
+      --yellow: #dba927;
+      --blue: #176bc2;
+      --shadow: 0 18px 50px rgba(18, 64, 36, .11);
     }
 
-    /* ── Login overlay ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(109, 184, 112, .22), transparent 34rem),
+        radial-gradient(circle at 90% 14%, rgba(37, 125, 84, .18), transparent 28rem),
+        linear-gradient(145deg, #f8fbf4 0%, #eef7ef 46%, #f9fbf6 100%);
+      overflow-x: hidden;
+    }
+    html[data-theme="dark"] body {
+      color: #edf7ef;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(31, 138, 76, .18), transparent 34rem),
+        radial-gradient(circle at 90% 14%, rgba(23, 107, 194, .12), transparent 28rem),
+        linear-gradient(145deg, #07110b 0%, #102419 48%, #081512 100%);
+    }
+    html[data-theme="dark"] {
+      --text: #edf7ef;
+      --muted: #a9b9ad;
+      --line: rgba(226, 247, 230, .12);
+      --leaf-soft: rgba(31, 138, 76, .22);
+      --shadow: 0 18px 50px rgba(0, 0, 0, .34);
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background-image:
+        linear-gradient(120deg, transparent 0 42%, rgba(255, 255, 255, .35) 44% 46%, transparent 48% 100%),
+        repeating-linear-gradient(90deg, rgba(31, 138, 76, .035) 0 1px, transparent 1px 90px);
+      opacity: .7;
+      animation: breath 12s ease-in-out infinite alternate;
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background:
+        linear-gradient(115deg, rgba(245, 251, 242, .86), rgba(224, 242, 224, .68)),
+        radial-gradient(circle at 35% 24%, rgba(121, 184, 92, .2), transparent 24rem);
+    }
+    @keyframes breath {
+      from { transform: translate3d(-1%, 0, 0) scale(1); }
+      to { transform: translate3d(1%, -1%, 0) scale(1.015); }
+    }
+
     #login-overlay {
-      position: fixed; inset: 0; z-index: 9999;
-      background: linear-gradient(135deg, #0f3d22 0%, #1B6B3A 50%, #2d8a52 100%);
-      display: flex; align-items: center; justify-content: center;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background:
+        linear-gradient(135deg, rgba(6, 53, 30, .95), rgba(27, 107, 58, .9)),
+        radial-gradient(circle at 18% 12%, rgba(159, 214, 139, .32), transparent 20rem);
     }
     #login-overlay.hidden { display: none; }
-
     .login-card {
-      background: #fff;
-      border-radius: 20px;
-      padding: 40px 36px 36px;
-      width: 100%; max-width: 400px;
-      box-shadow: 0 24px 60px rgba(0,0,0,.35);
+      width: min(420px, 100%);
+      padding: 36px;
+      border: 1px solid rgba(255, 255, 255, .5);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .92);
+      box-shadow: 0 32px 90px rgba(0, 0, 0, .28);
       text-align: center;
+      backdrop-filter: blur(18px);
     }
     .login-logo {
-      width: 64px; height: 64px;
-      background: var(--green-lt);
-      border-radius: 16px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 32px;
-      margin: 0 auto 18px;
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 16px;
+      display: grid;
+      place-items: center;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #eff9ec, #cdeccf);
+      color: var(--canopy);
+      font-size: 34px;
+      box-shadow: inset 0 0 0 1px rgba(31, 138, 76, .12);
     }
-    .login-card h1 { font-size: 22px; font-weight: 800; color: var(--green); }
-    .login-card p  { font-size: 13px; color: var(--muted); margin: 4px 0 28px; }
-
+    .login-card h1 { color: var(--canopy); font-size: 26px; }
+    .login-card p { color: var(--muted); margin: 6px 0 22px; }
     .login-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: #e8f5ee; color: var(--green);
-      border-radius: 20px; padding: 4px 12px;
-      font-size: 11px; font-weight: 600;
-      margin-bottom: 24px;
-    }
-    .login-badge::before { content: "🔒"; }
-
-    .field-group { text-align: left; margin-bottom: 16px; }
-    .field-group label {
-      display: block; font-size: 12px; font-weight: 600;
-      color: var(--muted); margin-bottom: 6px; letter-spacing: .3px;
-    }
-    .field-group input {
-      width: 100%; padding: 11px 14px;
-      border: 1.5px solid #e0e0e0; border-radius: 10px;
-      font-size: 14px; outline: none;
-      transition: border-color .2s, box-shadow .2s;
-    }
-    .field-group input:focus {
-      border-color: var(--green);
-      box-shadow: 0 0 0 3px rgba(27,107,58,.12);
-    }
-    .field-group input.error { border-color: var(--red); }
-
-    #login-error {
-      background: #ffebee; color: var(--red);
-      border-radius: 8px; padding: 9px 14px;
-      font-size: 13px; margin-bottom: 16px;
-      display: none; align-items: center; gap: 8px;
-    }
-    #login-error.show { display: flex; }
-
-    #login-btn {
-      width: 100%; padding: 13px;
-      background: var(--green); color: #fff;
-      border: none; border-radius: 10px;
-      font-size: 15px; font-weight: 700;
-      cursor: pointer; transition: background .2s, transform .1s;
-      letter-spacing: .3px;
-    }
-    #login-btn:hover  { background: #155730; }
-    #login-btn:active { transform: scale(.98); }
-    #login-btn:disabled { background: #aaa; cursor: not-allowed; }
-
-    .login-footer {
-      margin-top: 20px; font-size: 11px; color: #bbb;
-    }
-
-    /* ── Header ── */
-    header {
-      background: var(--green);
-      color: #fff;
-      padding: 16px 24px;
-      display: flex;
+      display: inline-flex;
+      gap: 8px;
       align-items: center;
-      justify-content: space-between;
-      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+      padding: 7px 13px;
+      margin-bottom: 24px;
+      color: var(--canopy);
+      background: var(--leaf-soft);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
     }
-    header .logo { display: flex; align-items: center; gap: 10px; }
-    header .logo span { font-size: 24px; }
-    header h1 { font-size: 20px; font-weight: 700; line-height: 1.2; }
-    header h1 small { display: block; font-size: 12px; font-weight: 400; opacity: .8; }
-    #refresh-btn {
-      background: rgba(255,255,255,.15);
-      border: 1px solid rgba(255,255,255,.4);
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      transition: background .2s;
+    .login-badge::before { content: "Secure"; }
+    .field-group { text-align: left; margin-bottom: 14px; }
+    .field-group label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
     }
-    #refresh-btn:hover { background: rgba(255,255,255,.25); }
-    #last-updated { font-size: 11px; opacity: .7; margin-top: 2px; text-align: right; }
-
-    /* ── Layout ── */
-    main { max-width: 1400px; margin: 0 auto; padding: 20px 16px; }
-
-    /* ── KPI row ── */
-    .kpi-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 12px;
-      margin-bottom: 20px;
+    input, select, textarea {
+      width: 100%;
+      border: 1.5px solid rgba(20, 87, 51, .18);
+      border-radius: 14px;
+      padding: 12px 14px;
+      outline: none;
+      color: var(--text);
+      background: rgba(255, 255, 255, .88);
+      font: inherit;
+      transition: border-color .2s, box-shadow .2s, transform .2s;
     }
-    .kpi {
-      background: #fff;
-      border-radius: 12px;
-      padding: 16px;
-      text-align: center;
-      box-shadow: 0 1px 4px rgba(0,0,0,.08);
-      border-top: 4px solid var(--green);
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--leaf);
+      box-shadow: 0 0 0 4px rgba(31, 138, 76, .12);
     }
-    .kpi.red    { border-color: var(--red); }
-    .kpi.orange { border-color: var(--orange); }
-    .kpi.blue   { border-color: var(--blue); }
-    .kpi .val   { font-size: 28px; font-weight: 800; line-height: 1; }
-    .kpi .lbl   { font-size: 12px; color: var(--muted); margin-top: 4px; }
-
-    /* ── 2-col grid ── */
-    .grid2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-    @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
-
-    /* ── Card ── */
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.08);
-      overflow: hidden;
-    }
-    .card-header {
-      padding: 14px 18px;
-      border-bottom: 1px solid #eee;
-      display: flex;
+    input.error { border-color: var(--red); }
+    #login-error {
+      display: none;
       align-items: center;
       gap: 8px;
-    }
-    .card-header h2 { font-size: 15px; font-weight: 700; }
-    .card-header .badge {
-      margin-left: auto;
-      background: var(--green-lt);
-      color: var(--green);
-      border-radius: 12px;
-      padding: 2px 10px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .card-body { padding: 0; }
-    .card-body.pad { padding: 18px; }
-
-    /* ── Priority table ── */
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    thead tr { background: #fafafa; }
-    th {
       padding: 10px 12px;
+      margin-bottom: 14px;
+      border-radius: 12px;
+      color: var(--red);
+      background: #ffeded;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    #login-error.show { display: flex; }
+    button {
+      position: relative;
+      overflow: hidden;
+      border: 0;
+      border-radius: 14px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 800;
+      transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .22s, background .22s, opacity .2s;
+    }
+    button:hover { transform: translateY(-2px); }
+    button:active { transform: translateY(1px) scale(.985); }
+    button:disabled { cursor: not-allowed; opacity: .65; transform: none; }
+    .ripple {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      pointer-events: none;
+      background: rgba(255, 255, 255, .58);
+      transform: translate(-50%, -50%) scale(1);
+      animation: ripple .62s ease-out forwards;
+    }
+    @keyframes ripple {
+      to { opacity: 0; transform: translate(-50%, -50%) scale(18); }
+    }
+    #login-btn, .primary-btn {
+      width: 100%;
+      padding: 13px 16px;
+      color: white;
+      background: linear-gradient(135deg, var(--canopy), var(--leaf));
+      box-shadow: 0 12px 26px rgba(31, 138, 76, .24);
+    }
+    .login-footer { margin-top: 18px; color: #99a69b; font-size: 11px; }
+
+    .shell { display: grid; grid-template-columns: 270px 1fr; min-height: 100vh; }
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 22px;
+      color: white;
+      background:
+        linear-gradient(180deg, rgba(10, 76, 40, .96), rgba(18, 93, 52, .92)),
+        radial-gradient(circle at 50% 0, rgba(192, 226, 162, .25), transparent 22rem);
+      box-shadow: 16px 0 50px rgba(19, 83, 48, .13);
+    }
+    .brand { display: flex; gap: 12px; align-items: center; margin-bottom: 28px; }
+    .brand-mark {
+      width: 52px;
+      height: 52px;
+      flex: 0 0 auto;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, .16);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .12);
+    }
+    .brand-mark img { width: 100%; height: 100%; display: block; border-radius: inherit; }
+    .brand h1 { font-size: 17px; line-height: 1.08; letter-spacing: -.01em; }
+    .brand small { display: block; margin-top: 4px; opacity: .72; font-size: 11px; font-weight: 500; }
+    .nav { display: grid; gap: 8px; }
+    .nav button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 13px;
+      color: rgba(255, 255, 255, .78);
+      background: transparent;
       text-align: left;
-      font-weight: 600;
+      border: 1px solid transparent;
+      isolation: isolate;
+    }
+    .nav button.active {
+      color: #0f3d22;
+      background: rgba(255, 255, 255, .9);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, .14);
+      transform: translateX(4px);
+    }
+    .nav button.active::after {
+      content: "";
+      position: absolute;
+      inset: -40% auto -40% -45%;
+      width: 55%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .56), transparent);
+      animation: navSheen 1.8s ease-in-out infinite;
+      z-index: -1;
+    }
+    .nav button:not(.active):hover { background: rgba(255, 255, 255, .1); }
+    .nav .icon { width: 24px; text-align: center; }
+    @keyframes navSheen {
+      0%, 55% { transform: translateX(0); opacity: 0; }
+      75% { opacity: 1; }
+      100% { transform: translateX(260%); opacity: 0; }
+    }
+    .aside-footer {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 20px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, .16);
+      font-size: 11px;
+      line-height: 1.7;
+      opacity: .78;
+    }
+
+    .content {
+      position: relative;
+      min-width: 0;
+      padding: 22px clamp(16px, 3vw, 38px) 32px;
+      overflow: hidden;
+    }
+    .nature-loop {
+      position: fixed;
+      inset: 0 0 0 270px;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: .62;
+    }
+    .nature-loop::before,
+    .nature-loop::after {
+      content: "";
+      position: absolute;
+      inset: -20%;
+      background:
+        radial-gradient(ellipse at 15% 28%, rgba(48, 143, 83, .18), transparent 18rem),
+        radial-gradient(ellipse at 82% 18%, rgba(89, 163, 103, .14), transparent 20rem),
+        radial-gradient(ellipse at 70% 84%, rgba(23, 107, 194, .12), transparent 22rem),
+        linear-gradient(120deg, transparent 0 34%, rgba(255,255,255,.25) 36% 37%, transparent 39% 100%);
+      animation: naturePan 26s linear infinite;
+    }
+    .nature-loop::after {
+      opacity: .7;
+      filter: blur(1px);
+      background:
+        repeating-linear-gradient(115deg, transparent 0 52px, rgba(31, 138, 76, .07) 53px 55px, transparent 56px 112px),
+        radial-gradient(circle at 24% 74%, rgba(207, 229, 207, .5), transparent 18rem);
+      animation-duration: 38s;
+      animation-direction: reverse;
+    }
+    .floating-leaf {
+      position: absolute;
+      width: 220px;
+      height: 96px;
+      border-radius: 100% 0 100% 0;
+      background: linear-gradient(135deg, rgba(201, 232, 190, .16), rgba(31, 138, 76, .12));
+      transform: rotate(-18deg);
+      animation: leafDrift 18s ease-in-out infinite alternate;
+    }
+    .floating-leaf.one { left: 8%; top: 12%; }
+    .floating-leaf.two { right: 6%; top: 44%; width: 280px; animation-delay: -7s; }
+    .floating-leaf.three { left: 42%; bottom: 4%; width: 190px; animation-delay: -12s; }
+    @keyframes naturePan {
+      from { transform: translate3d(-2%, -1%, 0) scale(1.04); }
+      to { transform: translate3d(2%, 1%, 0) scale(1.08); }
+    }
+    @keyframes leafDrift {
+      from { transform: translate3d(-18px, 12px, 0) rotate(-18deg); }
+      to { transform: translate3d(24px, -16px, 0) rotate(-8deg); }
+    }
+    header, main, footer { position: relative; z-index: 1; }
+    header {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+      padding: 16px 18px;
+      border: 1px solid rgba(255, 255, 255, .72);
+      border-radius: 26px;
+      background: rgba(255, 255, 255, .72);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .page-title .eyebrow {
+      color: var(--leaf);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    .page-title h2 { margin-top: 4px; font-size: clamp(25px, 2.6vw, 36px); line-height: 1.05; letter-spacing: -.03em; }
+    .page-title p { max-width: 760px; margin-top: 7px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .header-actions { display: flex; gap: 12px; align-items: center; }
+    .ghost-btn, #refresh-btn {
+      padding: 10px 14px;
+      color: var(--canopy);
+      background: rgba(255, 255, 255, .82);
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 24px rgba(31, 138, 76, .1);
+      white-space: nowrap;
+    }
+    .theme-select {
+      width: auto;
+      min-width: 118px;
+      padding: 10px 34px 10px 12px;
+      color: var(--canopy);
+      background: rgba(255, 255, 255, .82);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 900;
+      box-shadow: 0 8px 24px rgba(31, 138, 76, .1);
+    }
+    html[data-theme="dark"] .theme-select,
+    html[data-theme="dark"] #refresh-btn {
+      color: #dff8e3;
+      background: rgba(16, 36, 25, .84);
+    }
+    #last-updated, #logged-in-user { color: var(--muted); font-size: 11px; text-align: right; }
+
+    .page { display: none; animation: pageIn .36s ease both; }
+    .page.active { display: block; }
+    @keyframes pageIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .kpi {
+      position: relative;
+      min-height: 126px;
+      padding: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .76);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, .74);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+    .kpi::after {
+      content: "";
+      position: absolute;
+      right: -18px;
+      bottom: -24px;
+      width: 110px;
+      height: 110px;
+      border-radius: 60% 40% 50% 50%;
+      background: linear-gradient(135deg, rgba(31, 138, 76, .12), rgba(255, 255, 255, .15));
+      transform: rotate(-20deg);
+    }
+    .kpi .val { position: relative; z-index: 1; font-size: 36px; font-weight: 950; line-height: 1; }
+    .kpi .lbl { position: relative; z-index: 1; margin-top: 10px; color: var(--muted); font-size: 12px; font-weight: 900; letter-spacing: .02em; }
+    .kpi .micro { position: relative; z-index: 1; margin-top: 8px; color: #809083; font-size: 11px; }
+
+    .card {
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .8);
+      border-radius: 24px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.7)),
+        rgba(255, 255, 255, .76);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+    html[data-theme="dark"] header,
+    html[data-theme="dark"] .card,
+    html[data-theme="dark"] .kpi,
+    html[data-theme="dark"] .mini-insight {
+      background:
+        linear-gradient(180deg, rgba(19, 35, 26, .88), rgba(12, 25, 18, .74)),
+        rgba(19, 35, 26, .78);
+      border-color: rgba(226, 247, 230, .1);
+    }
+    html[data-theme="dark"] thead tr,
+    html[data-theme="dark"] .map-toolbar {
+      background: rgba(19, 35, 26, .82);
+    }
+    html[data-theme="dark"] .layer-btn {
+      color: #c5d7ca;
+      background: rgba(16, 36, 25, .84);
+    }
+    html[data-theme="dark"] input,
+    html[data-theme="dark"] select,
+    html[data-theme="dark"] textarea {
+      color: #edf7ef;
+      background: rgba(12, 25, 18, .84);
+      border-color: rgba(226, 247, 230, .12);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 66px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .24));
+    }
+    .card-kicker {
+      min-width: 78px;
+      color: var(--leaf);
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .card-header h3 { font-size: 17px; line-height: 1.2; letter-spacing: -.01em; }
+    .badge {
+      margin-left: auto;
+      padding: 6px 12px;
+      border-radius: 999px;
+      color: var(--canopy);
+      background: var(--leaf-soft);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .card-body.pad { padding: 18px; }
+    .grid2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 18px;
+    }
+    .grid3 {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 18px;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead tr { background: rgba(245, 248, 244, .82); }
+    th {
+      padding: 13px 16px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-align: left;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+    }
+    td { padding: 13px 16px; border-bottom: 1px solid rgba(19, 83, 48, .08); vertical-align: middle; }
+    tbody tr { transition: background .2s, transform .2s; }
+    tbody tr:hover { background: rgba(235, 248, 237, .68); }
+    .rank { width: 54px; color: var(--canopy); font-size: 18px; font-weight: 950; }
+    .ward-name { min-width: 160px; font-weight: 900; }
+    .ward-name small { display: block; margin-top: 3px; color: var(--muted); font-weight: 600; }
+    .risk {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .risk.critical { color: var(--red); background: #ffebea; }
+    .risk.high { color: var(--orange); background: #fff0df; }
+    .risk.medium { color: #8c6a03; background: #fff7d7; }
+    .risk.low { color: var(--canopy); background: var(--leaf-soft); }
+    .bar-wrap { display: grid; grid-template-columns: minmax(96px, 1fr) 42px; gap: 9px; align-items: center; min-width: 148px; }
+    .bar-bg { height: 9px; overflow: hidden; border-radius: 999px; background: #e7ebe8; }
+    .bar-fill { height: 100%; border-radius: 999px; animation: grow .7s ease both; }
+    @keyframes grow { from { width: 0; } }
+    .bar-val { font-weight: 900; text-align: right; }
+    .score-circle {
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-size: 16px;
+      font-weight: 950;
+    }
+    .iv-type {
+      display: inline-flex;
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: var(--canopy);
+      background: var(--leaf-soft);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .chart-wrap { height: 330px; padding: 18px; }
+    .chart-wrap.tall { height: 390px; }
+    .insight-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .mini-insight {
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, .75);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, .64);
+      box-shadow: 0 12px 28px rgba(18, 64, 36, .08);
+    }
+    .mini-insight strong { display: block; font-size: 26px; }
+    .mini-insight span { color: var(--muted); font-size: 12px; font-weight: 800; }
+
+    #ward-map {
+      width: 100%;
+      height: calc(100vh - 220px);
+      min-height: 560px;
+      background: #dfece0;
+    }
+    .map-toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .72);
+    }
+    .map-toolbar .label { color: var(--muted); font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+    .layer-btn {
+      width: auto;
+      padding: 8px 12px;
+      color: var(--muted);
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 13px;
+    }
+    .layer-btn.active { color: white; background: var(--canopy); }
+    .legend {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
       color: var(--muted);
       font-size: 11px;
+      font-weight: 800;
+    }
+    .legend-bar {
+      width: 90px;
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(237,125,26,.18), rgba(237,125,26,1));
+    }
+    .leaflet-popup-content-wrapper { border-radius: 18px; box-shadow: 0 16px 44px rgba(0, 0, 0, .16); }
+    .map-popup h4 { margin: 0 0 7px; font-size: 16px; }
+    .map-popup p { margin: 4px 0; color: var(--muted); font-size: 13px; }
+
+    .form-grid { display: grid; gap: 16px; }
+    .form-grid label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .06em;
       text-transform: uppercase;
-      letter-spacing: .4px;
-      border-bottom: 1px solid #eee;
     }
-    td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #fafff9; }
-
-    .rank { font-weight: 800; color: var(--green); width: 32px; }
-    .ward-name { font-weight: 600; max-width: 160px; }
-    .ward-name small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
-
-    /* risk badge */
-    .risk {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: .4px;
-      text-transform: uppercase;
+    textarea { min-height: 150px; resize: vertical; }
+    #alert-send-result {
+      display: none;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 900;
     }
-    .risk.critical { background: #ffebee; color: var(--red); }
-    .risk.high     { background: #fff3e0; color: var(--orange); }
-    .risk.medium   { background: #fffde7; color: var(--yellow); }
-    .risk.low      { background: #e8f5e9; color: var(--green); }
-
-    /* mini bar */
-    .bar-wrap { display: flex; align-items: center; gap: 6px; min-width: 100px; }
-    .bar-bg {
-      flex: 1; height: 6px; background: #eee;
-      border-radius: 3px; overflow: hidden;
-    }
-    .bar-fill { height: 100%; border-radius: 3px; }
-    .bar-val { font-size: 11px; font-weight: 600; width: 26px; text-align: right; }
-
-    /* composite score circle */
-    .score-circle {
-      width: 40px; height: 40px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 800;
-    }
-
-    /* ── Intervention table ── */
-    .iv-type {
-      background: #e8f5ee;
-      color: var(--green);
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-    /* ── ROI chart ── */
-    .chart-wrap { padding: 16px; height: 260px; }
-
-    /* ── Loading/error ── */
     .loading {
-      display: flex; align-items: center; justify-content: center;
-      padding: 40px; color: var(--muted); gap: 10px; font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 160px;
+      padding: 34px;
+      color: var(--muted);
+      gap: 10px;
+      font-weight: 800;
     }
     .spinner {
-      width: 20px; height: 20px;
-      border: 2px solid #ddd;
-      border-top-color: var(--green);
+      width: 22px;
+      height: 22px;
+      border: 3px solid rgba(31, 138, 76, .18);
+      border-top-color: var(--leaf);
       border-radius: 50%;
       animation: spin .7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    footer { padding: 26px 0 4px; color: var(--muted); text-align: center; font-size: 12px; }
 
-    /* ── Footer ── */
-    footer {
-      text-align: center;
-      color: var(--muted);
-      font-size: 12px;
-      padding: 24px;
+    @media (max-width: 1100px) {
+      .shell { grid-template-columns: 1fr; }
+      .nature-loop { inset: 0; }
+      aside {
+        position: static;
+        height: auto;
+        border-radius: 0 0 26px 26px;
+      }
+      .nav { grid-template-columns: repeat(3, 1fr); }
+      .aside-footer { position: static; margin-top: 18px; }
+      .kpi-row { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+      .grid2, .grid3, .insight-strip { grid-template-columns: 1fr; }
+      #ward-map { height: 620px; }
+    }
+    @media (max-width: 720px) {
+      .content { padding: 14px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .header-actions { width: 100%; justify-content: space-between; }
+      .nav { grid-template-columns: 1fr 1fr; }
+      .kpi-row { grid-template-columns: 1fr; }
+      .card { border-radius: 18px; overflow-x: auto; }
+      table { min-width: 760px; }
+      .chart-wrap { min-width: 540px; }
     }
   </style>
 </head>
 <body>
-
-<!-- ── Login Overlay ── -->
 <div id="login-overlay">
   <div class="login-card">
-    <div class="login-logo">🌿</div>
+    <div class="login-logo"><img src="/bbmp-static/ncg-logo.svg" alt="NammaClimaGrid logo" style="width:100%;height:100%;border-radius:22px"></div>
     <h1>NammaClimaGrid</h1>
     <p>BBMP Councillor Intelligence Platform</p>
     <div class="login-badge">BBMP Officials Only</div>
-
-    <div id="login-error">
-      <span>⚠️</span>
-      <span id="login-error-msg">Invalid credentials. Please try again.</span>
-    </div>
-
+    <div id="login-error"><span>!</span><span id="login-error-msg">Invalid credentials. Please try again.</span></div>
     <div class="field-group">
       <label>Official Email</label>
-      <input type="email" id="login-email" placeholder="Enter your email"
-             autocomplete="email" onkeydown="if(event.key==='Enter')attemptLogin()" />
+      <input type="text" id="login-email" placeholder="Enter your email" autocomplete="email" inputmode="email" onkeydown="if(event.key==='Enter')attemptLogin()" />
     </div>
     <div class="field-group">
       <label>Admin Access Token</label>
-      <input type="password" id="login-password" placeholder="Paste ADMIN_API_KEY"
-             autocomplete="current-password" onkeydown="if(event.key==='Enter')attemptLogin()" />
+      <input type="password" id="login-password" placeholder="Paste ADMIN_API_KEY" autocomplete="current-password" onkeydown="if(event.key==='Enter')attemptLogin()" />
     </div>
-
-    <button id="login-btn" onclick="attemptLogin()">Sign In →</button>
-
-    <div class="login-footer">
-      Secure access · NammaClimaGrid v2.0 · BBMP Climate Intelligence
-    </div>
+    <button id="login-btn" onclick="attemptLogin()">Sign In</button>
+    <div class="login-footer">Secure access · NammaClimaGrid v2.0 · BBMP Climate Intelligence</div>
   </div>
 </div>
 
-<header>
-  <div class="logo">
-    <span>🌿</span>
-    <h1>NammaClimaGrid — BBMP Dashboard
-      <small>Bengaluru Climate Risk &amp; Green Infrastructure Command</small>
-    </h1>
-  </div>
-  <div style="text-align:right">
-    <button id="refresh-btn" onclick="loadAll()">⟳ Refresh</button>
-    <div id="last-updated">—</div>
-    <div style="font-size:11px;opacity:.7;margin-top:4px" id="logged-in-user"></div>
-  </div>
-</header>
-
-<main>
-  <!-- KPIs -->
-  <div class="kpi-row" id="kpi-row">
-    <div class="loading"><div class="spinner"></div> Loading…</div>
-  </div>
-
-  <!-- Row 1: Priority wards + Risk distribution chart -->
-  <div class="grid2">
-    <div class="card">
-      <div class="card-header">
-        <span>🔥</span>
-        <h2>Priority Wards — Highest Composite Risk</h2>
-        <span class="badge" id="pw-count">—</span>
-      </div>
-      <div class="card-body">
-        <div id="priority-table"><div class="loading"><div class="spinner"></div> Loading…</div></div>
+<div class="shell">
+  <aside>
+    <div class="brand">
+      <div class="brand-mark"><img src="/bbmp-static/ncg-logo.svg" alt="NammaClimaGrid logo"></div>
+      <div>
+        <h1>NammaClimaGrid</h1>
+        <small>BBMP climate command</small>
       </div>
     </div>
-
-    <div class="card">
-      <div class="card-header">
-        <span>📊</span>
-        <h2>Risk Distribution</h2>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="risk-chart"></canvas>
-      </div>
-      <div class="card-header" style="border-top:1px solid #eee;border-bottom:none;padding-top:10px;">
-        <span>🌡</span>
-        <h2>Heat vs Flood Scatter (Top 20)</h2>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="scatter-chart"></canvas>
-      </div>
+    <nav class="nav" aria-label="Dashboard pages">
+      <button class="active" data-page="overview" onclick="showPage('overview')"><span class="icon">01</span>Overview</button>
+      <button data-page="insights" onclick="showPage('insights')"><span class="icon">02</span>Risk Insights</button>
+      <button data-page="map" onclick="showPage('map')"><span class="icon">03</span>Ward Map</button>
+      <button data-page="interventions" onclick="showPage('interventions')"><span class="icon">04</span>Interventions</button>
+      <button data-page="reports" onclick="showPage('reports')"><span class="icon">05</span>Image Reports</button>
+      <button data-page="broadcast" onclick="showPage('broadcast')"><span class="icon">06</span>Broadcast</button>
+    </nav>
+    <div class="aside-footer">
+      <div id="logged-in-user"></div>
+      <div>Live data refreshes every 10 seconds.</div>
     </div>
-  </div>
+  </aside>
 
-  <!-- Row 2: Interventions + ROI -->
-  <div class="grid2">
-    <div class="card">
-      <div class="card-header">
-        <span>🌳</span>
-        <h2>Recommended Interventions</h2>
-        <span class="badge" id="iv-count">—</span>
-      </div>
-      <div class="card-body">
-        <div id="intervention-table"><div class="loading"><div class="spinner"></div> Loading…</div></div>
-      </div>
+  <div class="content">
+    <div class="nature-loop" aria-hidden="true">
+      <span class="floating-leaf one"></span>
+      <span class="floating-leaf two"></span>
+      <span class="floating-leaf three"></span>
     </div>
-
-    <div class="card">
-      <div class="card-header">
-        <span>💰</span>
-        <h2>Intervention ROI by Ward (Top 15)</h2>
+    <header>
+      <div class="page-title">
+        <div class="eyebrow" id="page-eyebrow">Overview</div>
+        <h2 id="page-heading">Ward Risk Pulse</h2>
+        <p id="page-subtitle">Critical count, high-risk wards, average heat stress, average flood stress, and the ward table.</p>
       </div>
-      <div class="chart-wrap" style="height:300px">
-        <canvas id="roi-chart"></canvas>
-      </div>
-    </div>
-  </div>
-</main>
-
-  <!-- Row 3: Citizen Reports + Send Alert -->
-  <div class="grid2" style="margin-bottom:20px">
-
-    <!-- Citizen image reports -->
-    <div class="card">
-      <div class="card-header">
-        <span>📸</span>
-        <h2>Citizen Image Reports</h2>
-        <span class="badge" id="cr-count">—</span>
-      </div>
-      <div class="card-body">
-        <div id="citizen-reports-table">
-          <div class="loading"><div class="spinner"></div> Loading…</div>
+      <div class="header-actions">
+        <select id="theme-mode" class="theme-select" aria-label="Theme mode" onchange="setThemeMode(this.value)">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+        <div>
+          <button id="refresh-btn" onclick="loadAll()">Refresh</button>
+          <div id="last-updated">-</div>
         </div>
       </div>
-    </div>
+    </header>
 
-    <!-- Send alert to citizens -->
-    <div class="card">
-      <div class="card-header">
-        <span>📢</span>
-        <h2>Broadcast Alert to Citizens</h2>
-      </div>
-      <div class="card-body pad">
-        <div id="alert-send-result" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600"></div>
-
-        <div style="margin-bottom:12px">
-          <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:5px">Ward ID</label>
-          <input id="ba-ward" type="number" min="1" max="198" placeholder="1 – 198"
-            style="width:100%;padding:9px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none" />
+    <main>
+      <section class="page active" id="page-overview">
+        <div class="kpi-row" id="overview-kpis"><div class="loading"><div class="spinner"></div> Loading...</div></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-kicker">Priority</span>
+            <h3>Ward Risk Table</h3>
+            <span class="badge" id="pw-count">-</span>
+          </div>
+          <div id="priority-table"><div class="loading"><div class="spinner"></div> Loading...</div></div>
         </div>
+      </section>
 
-        <div style="margin-bottom:12px">
-          <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:5px">Alert Type</label>
-          <select id="ba-type" style="width:100%;padding:9px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none;background:#fff">
-            <option value="flood_warning">🌊 Flood Warning</option>
-            <option value="heat_wave">🌡 Heat Wave</option>
-            <option value="air_quality">💨 Air Quality</option>
-            <option value="advisory">📋 General Advisory</option>
-          </select>
+      <section class="page" id="page-insights">
+        <div class="insight-strip" id="insight-strip">
+          <div class="mini-insight"><strong>-</strong><span>Dominant risk level</span></div>
+          <div class="mini-insight"><strong>-</strong><span>Hottest priority ward</span></div>
+          <div class="mini-insight"><strong>-</strong><span>Highest flood ward</span></div>
         </div>
-
-        <div style="margin-bottom:12px">
-          <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:5px">Severity</label>
-          <select id="ba-severity" style="width:100%;padding:9px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none;background:#fff">
-            <option value="low">🟢 Low</option>
-            <option value="medium">🟡 Medium</option>
-            <option value="high" selected>🟠 High</option>
-            <option value="critical">🔴 Critical</option>
-          </select>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-header"><span class="card-kicker">Levels</span><h3>Risk Distribution</h3></div>
+            <div class="chart-wrap"><canvas id="risk-chart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-kicker">Compare</span><h3>Heat vs Flood</h3></div>
+            <div class="chart-wrap"><canvas id="scatter-chart"></canvas></div>
+          </div>
         </div>
-
-        <div style="margin-bottom:16px">
-          <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:5px">Message</label>
-          <textarea id="ba-message" maxlength="300" rows="3" placeholder="Alert message for citizens…"
-            style="width:100%;padding:9px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none;resize:vertical;font-family:inherit"></textarea>
-          <div style="text-align:right;font-size:11px;color:#aaa;margin-top:3px"><span id="ba-char">0</span>/300</div>
+        <div class="grid2" style="margin-top:18px">
+          <div class="card">
+            <div class="card-header"><span class="card-kicker">Heat</span><h3>Top Stress Wards</h3></div>
+            <div class="chart-wrap"><canvas id="heat-chart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-kicker">Flood</span><h3>Top Stress Wards</h3></div>
+            <div class="chart-wrap"><canvas id="flood-chart"></canvas></div>
+          </div>
         </div>
+      </section>
 
-        <button onclick="sendBroadcastAlert()" id="ba-btn"
-          style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s">
-          📢 Send Alert to All Citizens
-        </button>
-      </div>
-    </div>
+      <section class="page" id="page-map">
+        <div class="card">
+          <div class="map-toolbar">
+            <span class="label">Color by</span>
+            <button class="layer-btn active" data-layer="heat" onclick="setMapLayer('heat')">Heat</button>
+            <button class="layer-btn" data-layer="flood" onclick="setMapLayer('flood')">Flood</button>
+            <button class="layer-btn" data-layer="combined" onclick="setMapLayer('combined')">Combined</button>
+            <div class="legend"><span>Low</span><span class="legend-bar" id="map-legend-bar"></span><span>High</span><span class="badge" id="map-count">-</span></div>
+          </div>
+          <div id="ward-map"></div>
+        </div>
+      </section>
 
+      <section class="page" id="page-interventions">
+        <div class="kpi-row" id="intervention-kpis"><div class="loading"><div class="spinner"></div> Loading...</div></div>
+        <div class="grid3">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-kicker">Actions</span>
+              <h3>Recommended Interventions</h3>
+              <span class="badge" id="iv-count">-</span>
+            </div>
+            <div id="intervention-table"><div class="loading"><div class="spinner"></div> Loading...</div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-kicker">ROI</span><h3>Ward Return</h3></div>
+            <div class="chart-wrap tall"><canvas id="roi-chart"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-reports">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-kicker">Reports</span>
+            <h3>Citizen Image Reports</h3>
+            <span class="badge" id="cr-count">-</span>
+          </div>
+          <div id="citizen-reports-table"><div class="loading"><div class="spinner"></div> Loading...</div></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-broadcast">
+        <div class="card">
+          <div class="card-header"><span class="card-kicker">Alert</span><h3>Broadcast to Citizens</h3></div>
+          <div class="card-body pad">
+            <div id="alert-send-result"></div>
+            <div class="form-grid">
+              <div>
+                <label for="ba-ward">Ward Name</label>
+                <select id="ba-ward">
+                  <option value="">Loading wards...</option>
+                </select>
+              </div>
+              <div class="grid2">
+                <div>
+                  <label for="ba-type">Alert Type</label>
+                  <select id="ba-type">
+                    <option value="flood_warning">Flood Warning</option>
+                    <option value="heat_wave">Heat Wave</option>
+                    <option value="air_quality">Air Quality</option>
+                    <option value="advisory">General Advisory</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="ba-severity">Severity</label>
+                  <select id="ba-severity">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high" selected>High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label for="ba-message">Message</label>
+                <textarea id="ba-message" maxlength="300" placeholder="Alert message for citizens..."></textarea>
+                <div style="text-align:right;color:#95a398;font-size:12px;font-weight:800;margin-top:5px"><span id="ba-char">0</span>/300</div>
+              </div>
+              <button class="primary-btn" id="ba-btn" onclick="sendBroadcastAlert()">Send Alert to All Citizens</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>NammaClimaGrid · BBMP Councillor Intelligence · Live ward climate data</footer>
   </div>
-
-<footer>NammaClimaGrid · BBMP Councillor Intelligence · Live data · Refreshes every 10 seconds</footer>
+</div>
 
 <script>
-  // ── Auth gate ────────────────────────────────────────────────────────────
-  const SESSION_KEY    = 'ncg_bbmp_session';
+  const SESSION_KEY = 'ncg_bbmp_session';
+  const THEME_KEY = 'ncg_theme_mode';
+  const API = (() => {
+    const { protocol, hostname, port, origin } = window.location;
+    if (port === '3002' || port === '5173' || port === '8080') return `${protocol}//${hostname}:8000`;
+    return origin;
+  })();
+
+  const pageMeta = {
+    overview: ['Overview', 'Ward Risk Pulse', 'Critical count, high-risk wards, average heat stress, average flood stress, and the ward table.'],
+    insights: ['Insights', 'Risk Patterns', 'Distribution, heat-flood comparison, and ranked stress plots for fast decisions.'],
+    map: ['Map', 'Live Ward Map', 'Heat, flood, and combined risk layers across Bengaluru wards.'],
+    interventions: ['Interventions', 'Green Action Plan', 'Recommended ward interventions, planned count, allocated budget, and ROI.'],
+    reports: ['Reports', 'Citizen Image Reports', 'AI-assisted incident reports with BBMP feedback controls.'],
+    broadcast: ['Broadcast', 'Alert Composer', 'Send ward-level official alerts to connected citizens.'],
+  };
+
+  let activePage = 'overview';
+  let allWards = [];
+  let priorityWards = [];
+  let interventions = [];
+  let geoFeatures = [];
+  let map = null;
+  let geoLayer = null;
+  let mapLayer = 'heat';
+  let riskChart = null, scatterChart = null, roiChart = null, heatChart = null, floodChart = null;
+  const MAP_THRESHOLDS = {
+    heat: { min: 22.0, max: 34.0, low: '22°C', high: '34°C' },
+    flood: { min: 2.0, max: 6.0, low: '2.0', high: '6.0' },
+    combined: { min: 0.0, max: 1.0, low: '0.0', high: '1.0' },
+  };
+  const BBMP_WARD_NAMES = {
+    1: 'Kempegowda Ward', 2: 'Chowdeshwari Ward', 3: 'Attur', 4: 'Yelahanka Satellite Town',
+    5: 'Jakkur', 6: 'Thanisandra', 7: 'Byatarayanapura', 8: 'Kodigehalli',
+    9: 'Vidyaranyapura', 10: 'Doddabommasandra', 11: 'Kuvempunagar', 12: 'Shettyhalli',
+    13: 'Mallasandra', 14: 'Bagalagunte', 15: 'T. Dasarahalli', 16: 'Jalahalli',
+    17: 'J. P. Park', 18: 'Radhakrishna Temple', 19: 'Sanjaynagar', 20: 'Ganganagar',
+    21: 'Hebbala', 22: 'Vishwanatha Nagenahalli', 23: 'Nagavara', 24: 'HBR Layout',
+    25: 'Horamavu', 26: 'Ramamurthynagar', 27: 'Banaswadi', 28: 'Kammanahalli',
+    29: 'Kacharakanahalli', 30: 'Kadugondanahalli', 31: 'Kushalnagar', 32: 'Kavalbyrasandra',
+    33: 'Manorayanapalya', 34: 'Gangenahalli', 35: 'Aramanenagar', 36: 'Mathikere',
+    37: 'Yeshwanthpura', 38: 'H. M. T.', 39: 'Chokkasandra', 40: 'Dodda Bidarkallu',
+    41: 'Peenya Industrial Area', 42: 'Lakshmidevinagar', 43: 'Nandini Layout', 44: 'Marappana Palya',
+    45: 'Malleshwaram', 46: 'Jayachamarajendranagar', 47: 'Devarajeevanahalli', 48: 'Muneshwaranagar',
+    49: 'Lingarajapuram', 50: 'Benniganahalli', 51: 'Vijinapura', 52: 'Krishnarajapuram',
+    53: 'Basavanapura', 54: 'Hoodi', 55: 'Devasandra', 56: 'A. Narayanapura',
+    57: 'C. V. Raman Nagar', 58: 'Hosathippasandra', 59: 'Maruthisevanagar', 60: 'Sagayarapuram',
+    61: 'S. K. Garden', 62: 'Ramaswamypalya', 63: 'Jayamahal', 64: 'Rajamahal',
+    65: 'Kadumalleshwara', 66: 'Subrahmanyanagar', 67: 'Nagapura', 68: 'Mahalakshmipuram',
+    69: 'Laggere', 70: 'Rajagopalanagar', 71: 'Hegganahalli', 72: 'Herohalli',
+    73: 'Kottigepalya', 74: 'Shakthiganapathinagar', 75: 'Shankara Matha', 76: 'Gayathrinagar',
+    77: 'Dattathreya Temple', 78: 'Pulakeshinagar', 79: 'Sarvagnanagar', 80: 'Hoysalanagar',
+    81: 'Vignananagar', 82: 'Garudacharpalya', 83: 'Kadugudi', 84: 'Hagadooru',
+    85: 'Doddanekkundi', 86: 'Marathahalli', 87: 'HAL Airport', 88: 'Jeevanabima Nagar',
+    89: 'Jogupalya', 90: 'Ulsoor', 91: 'Bharathinagar', 92: 'Shivajinagar',
+    93: 'Vasanthnagar', 94: 'Gandhinagar', 95: 'Subhashnagar', 96: 'Okalipuram',
+    97: 'Dayanandanagar', 98: 'Prakashnagar', 99: 'Rajajinagar', 100: 'Basaveshwaranagar',
+    101: 'Kamakshipalya', 102: 'Vrishabhavathi', 103: 'Kaveripura', 104: 'Govindarajanagar',
+    105: 'Agrahara Dasarahalli', 106: 'Dr. Rajkumar', 107: 'Shivanagar', 108: 'Srirama Mandir',
+    109: 'Chickpete', 110: 'Sampangiramanagar', 111: 'Shanthalanagar', 112: 'Domlur',
+    113: 'Konena Agrahara', 114: 'Agaram', 115: 'Vannarpet', 116: 'Neelasandra',
+    117: 'Shanthinagar', 118: 'Sudhamanagar', 119: 'Dharmarayaswamy Temple', 120: 'Cottonpet',
+    121: 'Binnipete', 122: 'Kempapura Agrahara', 123: 'Vijaynagar', 124: 'Hosahalli',
+    125: 'Marenahalli', 126: 'Maruthi Mandira', 127: 'Moodalapalya', 128: 'Nagarabhavi',
+    129: 'Jnanabharathi', 130: 'Ullalu', 131: 'Nayandahalli', 132: 'Attiguppe',
+    133: 'Hampinagar', 134: 'Bapujinagar', 135: 'Padarayanapura', 136: 'Jagjivanram Nagar',
+    137: 'Rayapuram', 138: 'Chalavadipalya', 139: 'Krishnarajendra Market', 140: 'Chamarajapet',
+    141: 'Azadnagar', 142: 'Sunkenahalli', 143: 'Visvesvarapuram', 144: 'Siddapura',
+    145: 'Hombegowdanagar', 146: 'Lakkasandra', 147: 'Adugodi', 148: 'Ejipura',
+    149: 'Varthur', 150: 'Bellandur', 151: 'Koramangala', 152: 'Suddaguntepalya',
+    153: 'Jayanagar', 154: 'Basavanagudi', 155: 'Hanumanthanagar', 156: 'Srinagar',
+    157: 'Gali Anjaneya Temple', 158: 'Deepanjalinagar', 159: 'Kengeri', 160: 'Rajarajeshwarinagar',
+    161: 'Hosakerehalli', 162: 'Girinagar', 163: 'Kathriguppe', 164: 'Vidyapeetha',
+    165: 'Ganesh Mandira', 166: 'Karisandra', 167: 'Yediyur', 168: 'Pattabhiramnagar',
+    169: 'Byrasandra', 170: 'Jayanagar East', 171: 'Gurappanapalya', 172: 'Madiwala',
+    173: 'Jakkasandra', 174: 'HSR Layout', 175: 'Bommanahalli', 176: 'BTM Layout',
+    177: 'J. P. Nagar', 178: 'Sarakki', 179: 'Shakambarinagar', 180: 'Banashankari Temple',
+    181: 'Kumaraswamy Layout', 182: 'Padmanabhanagar', 183: 'Chikkalasandra', 184: 'Uttarahalli',
+    185: 'Yelachenahalli', 186: 'Jaraganahalli', 187: 'Puttenahalli', 188: 'Bilekahalli',
+    189: 'Hongasandra', 190: 'Mangammanapalya', 191: 'Singasandra', 192: 'Begur',
+    193: 'Arakere', 194: 'Gottigere', 195: 'Konanakunte', 196: 'Anjanapura',
+    197: 'Vasanthapura', 198: 'Hemmigepura',
+  };
+
+  function applyThemeMode(mode) {
+    const resolved = mode === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : mode;
+    document.documentElement.dataset.theme = resolved;
+    const select = document.getElementById('theme-mode');
+    if (select) select.value = mode;
+  }
+
+  function setThemeMode(mode) {
+    localStorage.setItem(THEME_KEY, mode);
+    applyThemeMode(mode);
+    setTimeout(() => {
+      [riskChart, scatterChart, roiChart, heatChart, floodChart].forEach(chart => chart?.update());
+      if (map) map.invalidateSize();
+    }, 80);
+  }
+
+  function initThemeMode() {
+    const mode = localStorage.getItem(THEME_KEY) || 'system';
+    applyThemeMode(mode);
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if ((localStorage.getItem(THEME_KEY) || 'system') === 'system') applyThemeMode('system');
+    });
+  }
 
   function checkSession() {
     const s = sessionStorage.getItem(SESSION_KEY);
@@ -474,25 +997,21 @@
         }
       } catch (_) {}
     }
-    // Show login
     document.getElementById('login-overlay').classList.remove('hidden');
   }
 
   function attemptLogin() {
     const emailEl = document.getElementById('login-email');
-    const passEl  = document.getElementById('login-password');
-    const btn     = document.getElementById('login-btn');
-    const errBox  = document.getElementById('login-error');
-    const errMsg  = document.getElementById('login-error-msg');
-
+    const passEl = document.getElementById('login-password');
+    const btn = document.getElementById('login-btn');
+    const errBox = document.getElementById('login-error');
+    const errMsg = document.getElementById('login-error-msg');
     const email = emailEl.value.trim().toLowerCase();
     const token = passEl.value.trim();
 
-    // Clear previous errors
     errBox.classList.remove('show');
     emailEl.classList.remove('error');
     passEl.classList.remove('error');
-
     if (!email) {
       emailEl.classList.add('error');
       errMsg.textContent = 'Please enter your official email.';
@@ -500,91 +1019,66 @@
       emailEl.focus();
       return;
     }
-
-    // Animate button
-    btn.disabled = true;
-    btn.textContent = 'Verifying…';
-
     if (!token) {
-      btn.disabled = false;
-      btn.textContent = 'Sign In →';
       passEl.classList.add('error');
       errMsg.textContent = 'Enter your admin access token.';
       errBox.classList.add('show');
       passEl.focus();
       return;
     }
-
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
     window.NCG_ADMIN_TOKEN = token;
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-      email,
-      token,
-      exp: Date.now() + 8 * 60 * 60 * 1000,
-    }));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ email, token, exp: Date.now() + 8 * 60 * 60 * 1000 }));
     unlockDashboard(email, true);
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
   }
 
   function unlockDashboard(email, animate) {
     const overlay = document.getElementById('login-overlay');
-    const userEl  = document.getElementById('logged-in-user');
-
     if (animate) {
-      overlay.style.transition = 'opacity .4s';
+      overlay.style.transition = 'opacity .35s';
       overlay.style.opacity = '0';
-      setTimeout(() => overlay.classList.add('hidden'), 420);
+      setTimeout(() => overlay.classList.add('hidden'), 380);
     } else {
       overlay.classList.add('hidden');
     }
-
-    userEl.textContent = `👤 ${email}`;
+    document.getElementById('logged-in-user').textContent = email ? `Signed in as ${email}` : '';
     loadAll();
   }
 
-  // ── API ──────────────────────────────────────────────────────────────────
-  // When this file is served directly from a static server (for example on
-  // port 3002), relative API calls would hit that static origin and 404/501.
-  // Point those calls back at the FastAPI backend instead.
-  const API = (() => {
-    const { protocol, hostname, port, origin } = window.location;
-    if (port === '3002') return `${protocol}//${hostname}:8000`;
-    return origin;
-  })();
-  let riskChart = null, scatterChart = null, roiChart = null;
-
-  // ── Colour helpers ─────────────────────────────────────────────────────────
-  function riskColor(level) {
-    return { critical: '#D32F2F', high: '#F57C00', medium: '#F9A825', low: '#388E3C' }[level] || '#999';
-  }
-  function heatColor(v) {
-    if (v >= 75) return '#D32F2F';
-    if (v >= 50) return '#F57C00';
-    if (v >= 25) return '#F9A825';
-    return '#388E3C';
+  function showPage(page) {
+    activePage = page;
+    document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === `page-${page}`));
+    document.querySelectorAll('.nav button').forEach(btn => btn.classList.toggle('active', btn.dataset.page === page));
+    const [eyebrow, heading, subtitle] = pageMeta[page];
+    document.getElementById('page-eyebrow').textContent = eyebrow;
+    document.getElementById('page-heading').textContent = heading;
+    document.getElementById('page-subtitle').textContent = subtitle;
+    if (page === 'map') setTimeout(() => { ensureMap(); if (map) map.invalidateSize(); }, 80);
   }
 
-  function bar(value, color) {
-    const pct = Math.min(100, Math.max(0, value));
-    return `<div class="bar-wrap">
-      <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
-      <span class="bar-val" style="color:${color}">${Math.round(pct)}</span>
-    </div>`;
-  }
+  document.addEventListener('pointerdown', event => {
+    const btn = event.target.closest('button');
+    if (!btn || btn.disabled) return;
+    const rect = btn.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    ripple.style.left = `${event.clientX - rect.left}px`;
+    ripple.style.top = `${event.clientY - rect.top}px`;
+    btn.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+  });
 
-  function scoreCircle(v, level) {
-    const bg = riskColor(level);
-    const light = level === 'medium' ? '#7a6000' : '#fff';
-    return `<div class="score-circle" style="background:${bg}20;color:${bg};border:2px solid ${bg}20">
-      ${Math.round(v)}
-    </div>`;
+  function authHeaders() {
+    return window.NCG_ADMIN_TOKEN ? { Authorization: `Bearer ${window.NCG_ADMIN_TOKEN}` } : {};
   }
-
-  // ── Fetch helpers ──────────────────────────────────────────────────────────
   async function get(path) {
     const r = await fetch(API + path, { headers: authHeaders() });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} (GET ${path})`);
     return r.json();
   }
-
   async function post(path, body) {
     const r = await fetch(API + path, {
       method: 'POST',
@@ -594,435 +1088,504 @@
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} (POST ${path})`);
     return r.json();
   }
-
   async function del(path) {
     const r = await fetch(API + path, { method: 'DELETE', headers: authHeaders() });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} (DELETE ${path})`);
     return r.json();
   }
 
-  function authHeaders() {
-    return window.NCG_ADMIN_TOKEN ? { Authorization: `Bearer ${window.NCG_ADMIN_TOKEN}` } : {};
+  function riskColor(level) {
+    return { critical: '#d63c31', high: '#ed7d1a', medium: '#dba927', low: '#1f8a4c' }[level] || '#708070';
+  }
+  function heatColor(v) {
+    if (v >= 75) return '#d63c31';
+    if (v >= 50) return '#ed7d1a';
+    if (v >= 25) return '#dba927';
+    return '#1f8a4c';
+  }
+  function fmt(v, digits = 1) {
+    return Number.isFinite(Number(v)) ? Number(v).toFixed(digits) : '-';
+  }
+  function bar(value, color) {
+    const pct = Math.min(100, Math.max(0, Number(value) || 0));
+    return `<div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div><span class="bar-val" style="color:${color}">${Math.round(pct)}</span></div>`;
+  }
+  function scoreCircle(v, level) {
+    const bg = riskColor(level);
+    return `<div class="score-circle" style="background:${bg}18;color:${bg};border:3px solid ${bg}24">${Math.round(Number(v) || 0)}</div>`;
+  }
+  function composite(w) {
+    return Number(w.composite_risk ?? (0.6 * (w.heat_stress_score || 0) + 0.4 * (w.flood_risk_score || 0)));
+  }
+  function riskLabel(level) {
+    return `<span class="risk ${level}">${level || 'unknown'}</span>`;
+  }
+  function shortWardName(w) {
+    return (BBMP_WARD_NAMES[Number(w.ward_id)] || w.ward_name || `Ward ${w.ward_id}`).replace(/\s+\d+$/, '');
+  }
+  function wardDisplayName(wardId) {
+    const id = Number(wardId);
+    if (BBMP_WARD_NAMES[id]) return BBMP_WARD_NAMES[id];
+    const ward = allWards.find(w => Number(w.ward_id) === id)
+      || priorityWards.find(w => Number(w.ward_id) === id);
+    return ward?.ward_name || `Ward ${id}`;
+  }
+  function populateBroadcastWardSelect() {
+    const select = document.getElementById('ba-ward');
+    if (!select) return;
+    const previous = select.value;
+    const wards = [...allWards].sort((a, b) => {
+      const an = wardDisplayName(a.ward_id).localeCompare(wardDisplayName(b.ward_id));
+      return an || Number(a.ward_id) - Number(b.ward_id);
+    });
+    select.innerHTML = '<option value="">Select ward name</option>' + wards.map(w => {
+      const name = wardDisplayName(w.ward_id);
+      const suffix = w.risk_level ? ` · ${w.risk_level}` : '';
+      return `<option value="${w.ward_id}">${name}${suffix}</option>`;
+    }).join('');
+    if (previous && wards.some(w => String(w.ward_id) === previous)) select.value = previous;
   }
 
-  // ── KPI bar ───────────────────────────────────────────────────────────────
   function renderKPIs(wards, ivs) {
     const nCrit = wards.filter(w => w.risk_level === 'critical').length;
     const nHigh = wards.filter(w => w.risk_level === 'high').length;
-    const avgHeat  = wards.reduce((s, w) => s + w.heat_stress_score, 0) / wards.length;
-    const avgFlood = wards.reduce((s, w) => s + w.flood_risk_score, 0) / wards.length;
-    const budgetUsed = ivs.reduce((s, i) => s + (i.cost || 0), 0);
+    const avgHeat = wards.reduce((s, w) => s + (w.heat_stress_score || 0), 0) / Math.max(wards.length, 1);
+    const avgFlood = wards.reduce((s, w) => s + (w.flood_risk_score || 0), 0) / Math.max(wards.length, 1);
+    const budgetUsed = ivs.reduce((s, i) => s + (Number(i.cost) || 0), 0);
 
-    document.getElementById('kpi-row').innerHTML = `
-      <div class="kpi red">
-        <div class="val" style="color:var(--red)">${nCrit}</div>
-        <div class="lbl">Critical Wards</div>
-      </div>
-      <div class="kpi orange">
-        <div class="val" style="color:var(--orange)">${nHigh}</div>
-        <div class="lbl">High-Risk Wards</div>
-      </div>
-      <div class="kpi">
-        <div class="val" style="color:var(--orange)">${avgHeat.toFixed(1)}</div>
-        <div class="lbl">Avg Heat Stress /100</div>
-      </div>
-      <div class="kpi blue">
-        <div class="val" style="color:var(--blue)">${avgFlood.toFixed(1)}</div>
-        <div class="lbl">Avg Flood Risk /100</div>
-      </div>
-      <div class="kpi">
-        <div class="val" style="color:var(--green)">${ivs.length}</div>
-        <div class="lbl">Interventions Planned</div>
-      </div>
-      <div class="kpi">
-        <div class="val" style="color:var(--green)">₹${budgetUsed}Cr</div>
-        <div class="lbl">Budget Allocated</div>
-      </div>
-    `;
+    document.getElementById('overview-kpis').innerHTML = `
+      <div class="kpi"><div class="val" style="color:var(--red)">${nCrit}</div><div class="lbl">Critical Ward Count</div><div class="micro">Immediate watchlist</div></div>
+      <div class="kpi"><div class="val" style="color:var(--orange)">${nHigh}</div><div class="lbl">High Risk Wards</div><div class="micro">Elevated composite stress</div></div>
+      <div class="kpi"><div class="val" style="color:var(--orange)">${fmt(avgHeat)}</div><div class="lbl">Avg Heat Stress /100</div><div class="micro">Across ${wards.length} wards</div></div>
+      <div class="kpi"><div class="val" style="color:var(--blue)">${fmt(avgFlood)}</div><div class="lbl">Avg Flood Stress /100</div><div class="micro">Across ${wards.length} wards</div></div>`;
+
+    document.getElementById('intervention-kpis').innerHTML = `
+      <div class="kpi"><div class="val" style="color:var(--canopy)">${ivs.length}</div><div class="lbl">Interventions Planned</div><div class="micro">Recommended priority actions</div></div>
+      <div class="kpi"><div class="val" style="color:var(--canopy)">₹${budgetUsed}Cr</div><div class="lbl">Budget Allocated</div><div class="micro">Estimated green infra spend</div></div>
+      <div class="kpi"><div class="val" style="color:var(--orange)">${ivs.filter(i => i.intervention_type === 'urban_wetland').length}</div><div class="lbl">Wetland Actions</div><div class="micro">Flood-heavy interventions</div></div>
+      <div class="kpi"><div class="val" style="color:var(--leaf)">${ivs.filter(i => i.intervention_type === 'green_roof').length}</div><div class="lbl">Cooling Actions</div><div class="micro">Heat relief interventions</div></div>`;
   }
 
-  // ── Priority table ────────────────────────────────────────────────────────
   function renderPriorityTable(wards) {
-    document.getElementById('pw-count').textContent = `Top ${wards.length}`;
-    const rows = wards.map(w => `
+    document.getElementById('pw-count').textContent = `${wards.length} wards`;
+    const rows = wards.map((w, idx) => `
       <tr>
-        <td class="rank">#${w.priority_rank}</td>
-        <td class="ward-name">${w.ward_name || 'Ward ' + w.ward_id}
-          <small>ID ${w.ward_id}${w.lst_pred_celsius ? ' · ' + w.lst_pred_celsius.toFixed(1) + '°C' : ''}</small>
-        </td>
+        <td class="rank">#${w.priority_rank || idx + 1}</td>
+        <td class="ward-name">${w.ward_name || 'Ward ' + w.ward_id}<small>ID ${w.ward_id}${w.lst_pred_celsius ? ' · ' + fmt(w.lst_pred_celsius) + 'C' : ''}</small></td>
         <td>${bar(w.heat_stress_score, heatColor(w.heat_stress_score))}</td>
-        <td>${bar(w.flood_risk_score, '#1565C0')}</td>
-        <td>${scoreCircle(w.composite_risk, w.risk_level)}</td>
-        <td><span class="risk ${w.risk_level}">${w.risk_level}</span></td>
-      </tr>
-    `).join('');
-
+        <td>${bar(w.flood_risk_score, '#176bc2')}</td>
+        <td>${scoreCircle(composite(w), w.risk_level)}</td>
+        <td>${riskLabel(w.risk_level)}</td>
+      </tr>`).join('');
     document.getElementById('priority-table').innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th>#</th><th>Ward</th>
-            <th>Heat 🌡</th><th>Flood 💧</th>
-            <th>Risk Score</th><th>Level</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      <table><thead><tr><th>#</th><th>Ward</th><th>Heat</th><th>Flood</th><th>Risk Score</th><th>Level</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  // ── Intervention table ────────────────────────────────────────────────────
   function ivLabel(type) {
     return {
-      tree_planting:      '🌳 Tree Planting',
-      green_roof:         '🏠 Green Roof',
-      permeable_pavement: '🛤 Permeable Pavement',
-      urban_wetland:      '🌊 Urban Wetland',
-      cool_pavement:      '🌤 Cool Pavement',
-    }[type] || type;
+      tree_planting: 'Tree Planting',
+      green_roof: 'Green Roof',
+      permeable_pavement: 'Permeable Pavement',
+      urban_wetland: 'Urban Wetland',
+      cool_pavement: 'Cool Pavement',
+    }[type] || String(type || 'Action').replaceAll('_', ' ');
   }
-
   function renderInterventionTable(ivs) {
     document.getElementById('iv-count').textContent = `${ivs.length} actions`;
     const rows = ivs.map(iv => `
       <tr>
         <td class="rank">#${iv.priority_rank}</td>
-        <td class="ward-name">${iv.ward_name || 'Ward ' + iv.ward_id}
-          <small>H:${iv.ward_heat_stress?.toFixed(0)} F:${iv.ward_flood_risk?.toFixed(0)}</small>
-        </td>
+        <td class="ward-name">${iv.ward_name || 'Ward ' + iv.ward_id}<small>H:${fmt(iv.ward_heat_stress, 0)} F:${fmt(iv.ward_flood_risk, 0)}</small></td>
         <td><span class="iv-type">${ivLabel(iv.intervention_type)}</span></td>
-        <td style="font-weight:600;color:var(--red)">-${iv.expected_heat_reduction?.toFixed(1)}</td>
-        <td style="font-weight:600;color:var(--blue)">-${iv.expected_flood_reduction?.toFixed(1)}</td>
-        <td style="font-weight:700;color:var(--green)">₹${iv.cost}Cr</td>
-      </tr>
-    `).join('');
-
+        <td style="font-weight:900;color:var(--red)">-${fmt(iv.expected_heat_reduction)}</td>
+        <td style="font-weight:900;color:var(--blue)">-${fmt(iv.expected_flood_reduction)}</td>
+        <td style="font-weight:950;color:var(--canopy)">₹${iv.cost}Cr</td>
+      </tr>`).join('');
     document.getElementById('intervention-table').innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th>#</th><th>Ward</th><th>Action</th>
-            <th>▼ Heat</th><th>▼ Flood</th><th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      <table><thead><tr><th>#</th><th>Ward</th><th>Action</th><th>Heat</th><th>Flood</th><th>Cost</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  // ── Charts ────────────────────────────────────────────────────────────────
+  function chartDefaults() {
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.color = '#607064';
+    Chart.defaults.borderColor = 'rgba(19, 83, 48, .12)';
+  }
   function renderRiskChart(wards) {
     const counts = { critical: 0, high: 0, medium: 0, low: 0 };
     wards.forEach(w => { counts[w.risk_level] = (counts[w.risk_level] || 0) + 1; });
-
+    const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    const hot = [...wards].sort((a, b) => (b.heat_stress_score || 0) - (a.heat_stress_score || 0))[0] || {};
+    const flood = [...wards].sort((a, b) => (b.flood_risk_score || 0) - (a.flood_risk_score || 0))[0] || {};
+    document.getElementById('insight-strip').innerHTML = `
+      <div class="mini-insight"><strong style="color:${riskColor(dominant[0])}">${dominant[0]}</strong><span>Dominant risk level · ${dominant[1]} wards</span></div>
+      <div class="mini-insight"><strong>${shortWardName(hot)}</strong><span>Hottest priority ward · ${fmt(hot.heat_stress_score)}/100</span></div>
+      <div class="mini-insight"><strong>${shortWardName(flood)}</strong><span>Highest flood ward · ${fmt(flood.flood_risk_score)}/100</span></div>`;
     if (riskChart) riskChart.destroy();
     riskChart = new Chart(document.getElementById('risk-chart'), {
       type: 'doughnut',
       data: {
         labels: ['Critical', 'High', 'Medium', 'Low'],
-        datasets: [{
-          data: [counts.critical, counts.high, counts.medium, counts.low],
-          backgroundColor: ['#D32F2F', '#F57C00', '#F9A825', '#388E3C'],
-          borderWidth: 2,
-          borderColor: '#fff',
-        }],
+        datasets: [{ data: [counts.critical, counts.high, counts.medium, counts.low], backgroundColor: ['#d63c31', '#ed7d1a', '#dba927', '#1f8a4c'], borderColor: '#fff', borderWidth: 4 }],
       },
-      options: {
-        plugins: {
-          legend: { position: 'bottom', labels: { font: { size: 12 } } },
-        },
-        cutout: '65%',
-      },
+      options: { maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom' } } },
     });
   }
-
   function renderScatterChart(wards) {
-    const data = wards.map(w => ({
-      x: w.heat_stress_score,
-      y: w.flood_risk_score,
-      label: w.ward_name || 'Ward ' + w.ward_id,
-      level: w.risk_level,
-    }));
-
+    const data = wards.map(w => ({ x: w.heat_stress_score, y: w.flood_risk_score, label: w.ward_name || `Ward ${w.ward_id}`, level: w.risk_level }));
     if (scatterChart) scatterChart.destroy();
     scatterChart = new Chart(document.getElementById('scatter-chart'), {
       type: 'scatter',
-      data: {
-        datasets: [{
-          label: 'Wards',
-          data: data,
-          backgroundColor: data.map(d => riskColor(d.level) + 'cc'),
-          pointRadius: 6,
-          pointHoverRadius: 9,
-        }],
-      },
+      data: { datasets: [{ label: 'Wards', data, backgroundColor: data.map(d => riskColor(d.level) + 'cc'), pointRadius: 6, pointHoverRadius: 10 }] },
       options: {
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const d = data[ctx.dataIndex];
-                return [`${d.label}`, `Heat: ${ctx.parsed.x.toFixed(1)}`, `Flood: ${ctx.parsed.y.toFixed(1)}`];
-              },
-            },
-          },
-          legend: { display: false },
-        },
-        scales: {
-          x: { title: { display: true, text: 'Heat Stress Score' }, min: 0, max: 100 },
-          y: { title: { display: true, text: 'Flood Risk Score' }, min: 0, max: 100 },
-        },
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => [`${data[ctx.dataIndex].label}`, `Heat: ${fmt(ctx.parsed.x)}`, `Flood: ${fmt(ctx.parsed.y)}`] } } },
+        scales: { x: { min: 0, max: 100, title: { display: true, text: 'Heat Stress Score' } }, y: { min: 0, max: 100, title: { display: true, text: 'Flood Risk Score' } } },
       },
     });
   }
-
-  function renderROIChart(ivs) {
-    const top = ivs.slice(0, 15);
-    const labels = top.map(i => (i.ward_name || 'Ward ' + i.ward_id).replace(/\s+\d+$/, '') + ' #' + i.ward_id);
-    const roiData = top.map(i => {
-      const cost = i.cost || 1;
-      return +((i.expected_heat_reduction + i.expected_flood_reduction) / cost).toFixed(2);
+  function renderRankCharts(wards) {
+    const heatTop = [...wards].sort((a, b) => (b.heat_stress_score || 0) - (a.heat_stress_score || 0)).slice(0, 10).reverse();
+    const floodTop = [...wards].sort((a, b) => (b.flood_risk_score || 0) - (a.flood_risk_score || 0)).slice(0, 10).reverse();
+    if (heatChart) heatChart.destroy();
+    heatChart = new Chart(document.getElementById('heat-chart'), {
+      type: 'bar',
+      data: { labels: heatTop.map(w => shortWardName(w)), datasets: [{ data: heatTop.map(w => w.heat_stress_score), backgroundColor: '#ed7d1acc', borderColor: '#ed7d1a', borderWidth: 1.5, borderRadius: 8 }] },
+      options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { min: 0, max: 100 } } },
     });
-    const colors = top.map(i => riskColor(i.risk_level_ward || 'high'));
-
+    if (floodChart) floodChart.destroy();
+    floodChart = new Chart(document.getElementById('flood-chart'), {
+      type: 'bar',
+      data: { labels: floodTop.map(w => shortWardName(w)), datasets: [{ data: floodTop.map(w => w.flood_risk_score), backgroundColor: '#176bc2cc', borderColor: '#176bc2', borderWidth: 1.5, borderRadius: 8 }] },
+      options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { min: 0, max: 100 } } },
+    });
+  }
+  function renderROIChart(ivs) {
+    const top = ivs.slice(0, 15).reverse();
+    const labels = top.map(i => `${shortWardName(i)} #${i.ward_id}`);
+    const roiData = top.map(i => +(((i.expected_heat_reduction || 0) + (i.expected_flood_reduction || 0)) / (i.cost || 1)).toFixed(2));
     if (roiChart) roiChart.destroy();
     roiChart = new Chart(document.getElementById('roi-chart'), {
       type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'ROI (reduction pts / ₹Cr)',
-          data: roiData,
-          backgroundColor: colors.map(c => c + 'cc'),
-          borderColor: colors,
-          borderWidth: 1.5,
-          borderRadius: 4,
-        }],
-      },
-      options: {
-        indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { title: { display: true, text: 'ROI Score' } },
-          y: { ticks: { font: { size: 11 } } },
-        },
-      },
+      data: { labels, datasets: [{ data: roiData, backgroundColor: '#ed7d1acc', borderColor: '#ed7d1a', borderWidth: 1.5, borderRadius: 8 }] },
+      options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'ROI Score' } } } },
     });
   }
 
-  // ── Citizen reports (injected before this) ───────────────────────────────
-  // ── BBMP actions on citizen reports ────────────────────────────────────────
+  function ensureMap() {
+    if (!window.L || !document.getElementById('ward-map')) return;
+    if (!map) {
+      map = L.map('ward-map', { zoomControl: true }).setView([12.9716, 77.5946], 11);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+    }
+    renderMapLayer();
+  }
+  function norm(value, min, max) {
+    return Math.max(0, Math.min(1, (value - min) / (max - min)));
+  }
+  function heatC(props) {
+    if (props.temperature_c !== null && props.temperature_c !== undefined) return Number(props.temperature_c);
+    if (props.lst_pred_celsius !== null && props.lst_pred_celsius !== undefined) return Number(props.lst_pred_celsius);
+    return 22 + ((Number(props.heat_stress_score) || 0) / 100) * 12;
+  }
+  function floodMetric(props) {
+    return Number(props.flood_risk_score) || 0;
+  }
+  function mapRawValue(props, layer = mapLayer) {
+    const heat = heatC(props);
+    const flood = floodMetric(props);
+    const heatT = norm(heat, MAP_THRESHOLDS.heat.min, MAP_THRESHOLDS.heat.max);
+    const floodT = norm(flood, MAP_THRESHOLDS.flood.min, MAP_THRESHOLDS.flood.max);
+    if (layer === 'flood') return flood;
+    if (layer === 'combined') return Math.max(0, Math.min(1, 0.58 * heatT + 0.42 * floodT));
+    return heat;
+  }
+  function decimalDomain(layer = mapLayer) {
+    const vals = geoFeatures
+      .map(f => mapRawValue(f.properties || {}, layer))
+      .filter(v => Number.isFinite(v));
+    const fallback = MAP_THRESHOLDS[layer];
+    if (!vals.length) return { min: fallback.min, max: fallback.max };
+    let min = Math.min(...vals);
+    let max = Math.max(...vals);
+    const pad = layer === 'heat' ? 0.05 : layer === 'flood' ? 0.01 : 0.005;
+    if (Math.abs(max - min) < pad) {
+      min -= pad;
+      max += pad;
+    }
+    return { min, max };
+  }
+  function getMapIntensity(props, domain = decimalDomain()) {
+    return norm(mapRawValue(props), domain.min, domain.max);
+  }
+  function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
+  function colorFromIntensity(intensity) {
+    const t = Math.max(0, Math.min(1, intensity));
+    const palette = {
+      heat: [[255, 235, 209], [214, 60, 49]],
+      flood: [[218, 237, 255], [23, 107, 194]],
+      combined: [[232, 244, 234], [15, 95, 55]],
+    }[mapLayer];
+    const c = palette[0].map((v, i) => lerp(v, palette[1][i], t));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  function renderMapLayer() {
+    if (!map || !geoFeatures.length) return;
+    if (geoLayer) geoLayer.remove();
+    const domain = decimalDomain(mapLayer);
+    geoLayer = L.geoJSON({ type: 'FeatureCollection', features: geoFeatures }, {
+      style: feature => {
+        const intensity = getMapIntensity(feature.properties || {}, domain);
+        const color = colorFromIntensity(intensity);
+        return { color, fillColor: color, fillOpacity: .74, weight: 1.15 };
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        layer.bindPopup(`
+          <div class="map-popup">
+            <h4>${p.ward_name || 'Ward ' + p.ward_id}</h4>
+            <p><b>Air temp:</b> ${fmt(heatC(p), 2)}°C</p>
+            <p><b>Heat score:</b> ${fmt(p.heat_stress_score)}/100</p>
+            <p><b>Flood:</b> ${fmt(p.flood_risk_score, 2)}/100</p>
+            <p><b>Combined:</b> ${fmt(mapRawValue(p, 'combined'), 3)}</p>
+            <p><b>Level:</b> ${(p.risk_level || 'unknown').toUpperCase()}</p>
+            ${p.lst_pred_celsius ? `<p><b>LST:</b> ${fmt(p.lst_pred_celsius)}C</p>` : ''}
+            ${p.ndvi ? `<p><b>NDVI:</b> ${fmt(p.ndvi, 2)}</p>` : ''}
+          </div>`);
+      },
+    }).addTo(map);
+    try { map.fitBounds(geoLayer.getBounds(), { padding: [18, 18] }); } catch (_) {}
+    document.getElementById('map-count').textContent = `${geoFeatures.length} wards`;
+    updateMapLegend();
+  }
+  function updateMapLegend() {
+    const domain = decimalDomain(mapLayer);
+    const digits = mapLayer === 'heat' ? 2 : mapLayer === 'combined' ? 3 : 2;
+    const suffix = mapLayer === 'heat' ? '°C' : '';
+    const legend = document.querySelector('.legend');
+    if (legend) {
+      legend.children[0].textContent = `${domain.min.toFixed(digits)}${suffix}`;
+      legend.children[2].textContent = `${domain.max.toFixed(digits)}${suffix}`;
+    }
+  }
+  function setMapLayer(layer) {
+    mapLayer = layer;
+    document.querySelectorAll('.layer-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.layer === layer));
+    const colors = { heat: ['rgba(237,125,26,.18)', '#ed7d1a'], flood: ['rgba(23,107,194,.18)', '#176bc2'], combined: ['rgba(31,138,76,.18)', '#0f5f37'] }[layer];
+    document.getElementById('map-legend-bar').style.background = `linear-gradient(90deg, ${colors[0]}, ${colors[1]})`;
+    updateMapLegend();
+    renderMapLayer();
+  }
+
+  async function loadCitizenReports() {
+    try {
+      const [data, stats] = await Promise.all([get('/reports/recent?limit=15'), get('/reports/model-stats')]);
+      const reports = data.reports || [];
+      document.getElementById('cr-count').textContent = `${reports.length} reports`;
+      const biasSign = stats.bias >= 0 ? '+' : '';
+      const statsHtml = `
+        <div style="display:flex;gap:10px;align-items:center;padding:12px 16px;background:rgba(245,248,244,.78);border-bottom:1px solid var(--line);font-size:13px;flex-wrap:wrap">
+          <span style="font-weight:950;color:var(--muted)">AI Model</span>
+          <span class="risk low">${stats.real_count} confirmed real</span>
+          <span class="risk critical">${stats.fake_count} flagged fake</span>
+          <span class="risk medium">Bias ${biasSign}${(stats.bias || 0).toFixed(4)}</span>
+          <span style="color:#8b968d;margin-left:auto;font-weight:800">Total feedback: ${stats.total_feedback}</span>
+        </div>`;
+      if (!reports.length) {
+        document.getElementById('citizen-reports-table').innerHTML = statsHtml + '<div class="loading">No reports yet</div>';
+        return;
+      }
+      const rows = reports.map(r => {
+        const flood = r.flood_predicted;
+        const conf = r.flood_confidence ? `${(r.flood_confidence * 100).toFixed(0)}%` : '';
+        const aiConf = r.ai_confidence ? `${(r.ai_confidence * 100).toFixed(0)}%` : '';
+        const ts = r.reported_at ? new Date(r.reported_at).toLocaleTimeString() : '-';
+        const img = r.image_url
+          ? `<a href="${r.image_url}" target="_blank"><img src="${r.image_url}" style="width:58px;height:58px;object-fit:cover;border-radius:14px;border:3px solid ${flood ? '#d63c31' : '#e7ebe8'}" /></a>`
+          : '<span style="color:#b8c2bb;font-size:24px">Photo</span>';
+        const statusBadge = r.is_fake ? '<span class="risk critical">Fake</span>' : r.bbmp_confirmed ? '<span class="risk low">Verified</span>' : '';
+        const locationNote = r.fake_reason ? `<small style="color:var(--red)">${r.fake_reason}</small>` : r.expected_ward_name ? `<small>Location: ${r.expected_ward_name}</small>` : '';
+        const reportWardName = wardDisplayName(r.ward_id);
+        const actions = `
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${!r.is_fake && !r.bbmp_confirmed ? `
+              <button onclick="confirmReal(${r.id})" title="Confirm real" style="width:auto;background:var(--leaf-soft);color:var(--canopy);padding:7px 9px">Confirm</button>
+              <button onclick="flagFake(${r.id})" title="Mark fake" style="width:auto;background:#fff0df;color:var(--orange);padding:7px 9px">Fake</button>` : ''}
+            <button onclick="deleteReport(${r.id})" title="Delete report" style="width:auto;background:#ffebea;color:var(--red);padding:7px 9px">Delete</button>
+          </div>`;
+        const aiResult = (() => {
+          if (flood || r.ai_label === 'flood') return `<span class="risk critical">Flood ${conf || aiConf}</span>`;
+          if (r.ai_label === 'waterlogging') return `<span class="risk high">Waterlogging ${aiConf}</span>`;
+          if (r.report_type === 'air_quality') return r.ai_label === 'poor_air_quality' ? `<span class="risk high">Poor Air ${aiConf}</span>` : '<span class="risk low">No Visible Smog</span>';
+          if (r.report_type === 'heat_wave') return r.ai_label === 'heat_wave_dry_conditions' ? `<span class="risk high">Heat/Dry ${aiConf}</span>` : '<span class="risk low">No Visible Heat</span>';
+          if (r.report_type === 'tree_fall') return r.ai_label === 'tree_fall_detected' ? `<span class="risk high">Tree Fall ${aiConf}</span>` : '<span class="risk low">No Tree Fall</span>';
+          if (r.report_type === 'flood' || r.report_type === 'waterlogging') return '<span class="risk low">No Flood</span>';
+          return '<span class="risk medium">Image Received</span>';
+        })();
+        return `<tr style="${r.is_fake ? 'opacity:.56' : ''}">
+          <td>${img}</td>
+          <td class="ward-name">${reportWardName}<small>ID ${r.ward_id}${r.report_type ? ' · ' + r.report_type : ''}</small>${locationNote}</td>
+          <td>${aiResult} ${statusBadge}</td>
+          <td style="color:#7f8d82;font-weight:800">${ts}</td>
+          <td><span class="risk medium">${r.severity}/5</span></td>
+          <td>${actions}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('citizen-reports-table').innerHTML = statsHtml + `
+        <table><thead><tr><th>Photo</th><th>Ward</th><th>AI Result</th><th>Time</th><th>Sev.</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table>`;
+    } catch (e) {
+      document.getElementById('citizen-reports-table').innerHTML = '<div class="loading">No reports yet</div>';
+    }
+  }
+
   async function flagFake(reportId) {
     if (!confirm('Mark this report as FAKE? The AI model will learn from this.')) return;
     try {
       const res = await post(`/reports/${reportId}/flag-fake`, {});
-      const mu  = res.model_update;
-      showToast(`🚫 Flagged fake. Model bias: ${mu.bias > 0 ? '+' : ''}${mu.bias.toFixed(4)} (${mu.fake_count} fakes / ${mu.real_count} real)`, '#D32F2F');
+      const mu = res.model_update;
+      showToast(`Flagged fake. Model bias: ${mu.bias > 0 ? '+' : ''}${mu.bias.toFixed(4)}`, '#d63c31');
       loadCitizenReports();
-    } catch (e) { showToast(`❌ ${e.message}`, '#D32F2F'); }
+    } catch (e) { showToast(e.message, '#d63c31'); }
   }
-
   async function confirmReal(reportId) {
     try {
-      const res = await post(`/reports/${reportId}/confirm-real`, {});
-      const mu  = res.model_update;
-      showToast(`✅ Confirmed real flood. Model updated (${mu.real_count} reals logged)`, '#1B6B3A');
+      await post(`/reports/${reportId}/confirm-real`, {});
+      showToast('Confirmed real report. Model feedback saved.', '#0f5f37');
       loadCitizenReports();
-    } catch (e) { showToast(`❌ ${e.message}`, '#D32F2F'); }
+    } catch (e) { showToast(e.message, '#d63c31'); }
   }
-
   async function deleteReport(reportId) {
-    if (!confirm('Permanently DELETE this report? This cannot be undone.')) return;
+    if (!confirm('Permanently delete this report? This cannot be undone.')) return;
     try {
       await del(`/reports/${reportId}`);
-      showToast('🗑️ Report deleted', '#555');
+      showToast('Report deleted.', '#5e4b32');
       loadCitizenReports();
-    } catch (e) { showToast(`❌ ${e.message}`, '#D32F2F'); }
+    } catch (e) { showToast(e.message, '#d63c31'); }
   }
-
   function showToast(msg, color) {
     let t = document.getElementById('bbmp-toast');
     if (!t) {
       t = document.createElement('div');
       t.id = 'bbmp-toast';
-      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:10px;color:#fff;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .4s';
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 18px;border-radius:999px;color:#fff;font-size:13px;font-weight:900;z-index:9999;box-shadow:0 16px 40px rgba(0,0,0,.22);transition:opacity .3s';
       document.body.appendChild(t);
     }
     t.style.background = color;
     t.textContent = msg;
     t.style.opacity = '1';
     clearTimeout(t._timer);
-    t._timer = setTimeout(() => { t.style.opacity = '0'; }, 4000);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3600);
   }
 
-  async function loadCitizenReports() {
+  async function sendBroadcastAlert() {
+    const wardId = parseInt(document.getElementById('ba-ward').value, 10);
+    const wardName = wardDisplayName(wardId);
+    const type = document.getElementById('ba-type').value;
+    const sev = document.getElementById('ba-severity').value;
+    const msg = document.getElementById('ba-message').value.trim();
+    const btn = document.getElementById('ba-btn');
+    const resultEl = document.getElementById('alert-send-result');
+    if (!wardId || wardId < 1 || wardId > 198) {
+      resultEl.style.cssText = 'display:block;background:#ffebea;color:var(--red)';
+      resultEl.textContent = 'Select a ward name.';
+      return;
+    }
+    if (!msg) {
+      resultEl.style.cssText = 'display:block;background:#ffebea;color:var(--red)';
+      resultEl.textContent = 'Message cannot be empty.';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
     try {
-      const [data, stats] = await Promise.all([
-        get('/reports/recent?limit=15'),
-        get('/reports/model-stats'),
-      ]);
-      const reports = data.reports || [];
-      document.getElementById('cr-count').textContent = `${reports.length} reports`;
-
-      // Model stats pill
-      const biasSign = stats.bias >= 0 ? '+' : '';
-      const statsHtml = `
-        <div style="display:flex;gap:8px;align-items:center;padding:8px 12px;background:#f9fafb;border-radius:8px;margin-bottom:10px;font-size:12px;flex-wrap:wrap">
-          <span style="font-weight:700;color:#555">🤖 AI Model:</span>
-          <span style="background:#e8f5e9;color:#1B6B3A;padding:2px 8px;border-radius:12px;font-weight:700">${stats.real_count} confirmed real</span>
-          <span style="background:#ffebee;color:#D32F2F;padding:2px 8px;border-radius:12px;font-weight:700">${stats.fake_count} flagged fake</span>
-          <span style="background:#f3f4f6;color:#555;padding:2px 8px;border-radius:12px">Bias&nbsp;<b>${biasSign}${(stats.bias||0).toFixed(4)}</b></span>
-          <span style="color:#aaa;margin-left:auto">Total feedback: ${stats.total_feedback}</span>
-        </div>`;
-
-      if (!reports.length) {
-        document.getElementById('citizen-reports-table').innerHTML =
-          statsHtml + '<div class="loading" style="color:#aaa;padding:20px">No reports yet</div>';
-        return;
-      }
-
-      const rows = reports.map(r => {
-        const flood = r.flood_predicted;
-        const conf  = r.flood_confidence ? `${(r.flood_confidence*100).toFixed(0)}%` : '—';
-        const ts    = r.reported_at ? new Date(r.reported_at).toLocaleTimeString() : '—';
-        const img   = r.image_url
-          ? `<a href="${r.image_url}" target="_blank">
-               <img src="${r.image_url}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:2px solid ${flood?'#D32F2F':'#eee'}" />
-             </a>`
-          : '<span style="color:#ccc;font-size:20px">📷</span>';
-
-        const statusBadge = r.is_fake
-          ? `<span style="background:#ffebee;color:#D32F2F;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">FAKE</span>`
-          : r.bbmp_confirmed
-          ? `<span style="background:#e8f5e9;color:#1B6B3A;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">VERIFIED</span>`
-          : '';
-
-        const actions = `
-          <div style="display:flex;gap:4px;flex-wrap:wrap">
-            ${!r.is_fake && !r.bbmp_confirmed ? `
-              <button onclick="confirmReal(${r.id})" title="Confirm real flood"
-                style="background:#e8f5e9;color:#1B6B3A;border:none;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer">✅</button>
-              <button onclick="flagFake(${r.id})" title="Mark as fake"
-                style="background:#fff3e0;color:#E65100;border:none;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer">🚫</button>
-            ` : ''}
-            <button onclick="deleteReport(${r.id})" title="Delete report"
-              style="background:#ffebee;color:#D32F2F;border:none;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer">🗑️</button>
-          </div>`;
-
-        return `<tr style="${r.is_fake ? 'opacity:0.55' : ''}">
-          <td>${img}</td>
-          <td class="ward-name">Ward ${r.ward_id}<small>${r.report_type}</small></td>
-          <td>${flood
-            ? `<span class="risk critical">🌊 FLOOD ${conf}</span>`
-            : `<span class="risk low">✅ Clear</span>`}
-            ${statusBadge}</td>
-          <td style="font-size:11px;color:#999">${ts}</td>
-          <td><span style="background:#f5f5f5;border-radius:4px;padding:2px 6px;font-size:11px">${r.severity}/5</span></td>
-          <td>${actions}</td>
-        </tr>`;
-      }).join('');
-
-      document.getElementById('citizen-reports-table').innerHTML = statsHtml + `
-        <table>
-          <thead><tr><th>Photo</th><th>Ward</th><th>AI Result</th><th>Time</th><th>Sev.</th><th>Actions</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
+      await post('/bbmp/broadcast-alert', { ward_id: wardId, alert_type: type, severity: sev, message: msg });
+      resultEl.style.cssText = 'display:block;background:var(--leaf-soft);color:var(--canopy)';
+      resultEl.textContent = `Alert broadcast to all connected citizens in ${wardName}.`;
+      document.getElementById('ba-message').value = '';
+      document.getElementById('ba-char').textContent = '0';
     } catch (e) {
-      document.getElementById('citizen-reports-table').innerHTML =
-        '<div class="loading" style="color:#aaa;padding:20px">No reports yet</div>';
+      resultEl.style.cssText = 'display:block;background:#ffebea;color:var(--red)';
+      resultEl.textContent = `Broadcast failed: ${e.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Send Alert to All Citizens';
+      setTimeout(() => { resultEl.style.display = 'none'; }, 5000);
     }
   }
 
-  // ── Broadcast alert ───────────────────────────────────────────────────────
+  async function loadAll() {
+    document.getElementById('refresh-btn').textContent = 'Loading...';
+    try {
+      const [pwData, ivData, allWardsData, geoData] = await Promise.all([
+        get('/bbmp/priority-wards?limit=20'),
+        post('/interventions/recommend', { budget: 120, top_k: 15 }),
+        get('/wards/risk?limit=198'),
+        get('/wards/geojson/live'),
+      ]);
+      priorityWards = pwData.priority_wards || [];
+      interventions = ivData.recommendations || [];
+      allWards = (allWardsData.wards || []).map(w => ({
+        ...w,
+        ward_name: BBMP_WARD_NAMES[Number(w.ward_id)] || w.ward_name,
+      }));
+      geoFeatures = geoData.features || [];
+      priorityWards = priorityWards.map(w => ({
+        ...w,
+        ward_name: BBMP_WARD_NAMES[Number(w.ward_id)] || w.ward_name,
+      }));
+      interventions = interventions.map(iv => ({
+        ...iv,
+        ward_name: BBMP_WARD_NAMES[Number(iv.ward_id)] || iv.ward_name,
+      }));
+      populateBroadcastWardSelect();
+
+      chartDefaults();
+      renderKPIs(allWards, interventions);
+      const rankedWards = [...allWards]
+        .map(w => ({ ...w, composite_risk: composite(w) }))
+        .sort((a, b) => composite(b) - composite(a))
+        .map((w, i) => ({ ...w, priority_rank: i + 1 }));
+      renderPriorityTable(rankedWards);
+      renderInterventionTable(interventions);
+      renderRiskChart(allWards);
+      renderScatterChart(priorityWards.length ? priorityWards : allWards.slice(0, 20));
+      renderRankCharts(allWards);
+      renderROIChart(interventions);
+      renderMapLayer();
+      loadCitizenReports();
+
+      const src = allWardsData.source === 'postgresql_live' ? 'Live DB' : 'Model';
+      document.getElementById('last-updated').textContent = `${src} · ${new Date().toLocaleTimeString()}`;
+    } catch (e) {
+      console.error(e);
+      document.getElementById('overview-kpis').innerHTML = `<div class="loading" style="color:var(--red)">Failed to load: ${e.message}</div>`;
+    } finally {
+      document.getElementById('refresh-btn').textContent = 'Refresh';
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const msgEl = document.getElementById('ba-message');
     if (msgEl) msgEl.addEventListener('input', function() {
       document.getElementById('ba-char').textContent = this.value.length;
     });
+    setMapLayer('heat');
   });
 
-  async function sendBroadcastAlert() {
-    const wardId  = parseInt(document.getElementById('ba-ward').value);
-    const type    = document.getElementById('ba-type').value;
-    const sev     = document.getElementById('ba-severity').value;
-    const msg     = document.getElementById('ba-message').value.trim();
-    const btn     = document.getElementById('ba-btn');
-    const resultEl= document.getElementById('alert-send-result');
-
-    if (!wardId || wardId < 1 || wardId > 198) {
-      resultEl.style.cssText = 'display:block;background:#ffebee;color:#D32F2F;margin-bottom:14px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600';
-      resultEl.textContent = '⚠️ Enter a valid Ward ID (1–198)'; return;
-    }
-    if (!msg) {
-      resultEl.style.cssText = 'display:block;background:#ffebee;color:#D32F2F;margin-bottom:14px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600';
-      resultEl.textContent = '⚠️ Message cannot be empty'; return;
-    }
-
-    btn.disabled = true; btn.textContent = '📡 Sending…';
-    try {
-      await post('/bbmp/broadcast-alert', { ward_id: wardId, alert_type: type, severity: sev, message: msg });
-      resultEl.style.cssText = 'display:block;background:#e8f5e9;color:#1B6B3A;margin-bottom:14px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600';
-      resultEl.textContent = `✅ Alert broadcast to all connected citizens! (Ward ${wardId})`;
-      document.getElementById('ba-message').value = '';
-      document.getElementById('ba-char').textContent = '0';
-    } catch (e) {
-      resultEl.style.cssText = 'display:block;background:#ffebee;color:#D32F2F;margin-bottom:14px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600';
-      resultEl.textContent = `❌ Broadcast failed: ${e.message}`;
-    } finally {
-      btn.disabled = false; btn.textContent = '📢 Send Alert to All Citizens';
-      setTimeout(() => { resultEl.style.display = 'none'; }, 5000);
-    }
-  }
-
-  // ── Load all ──────────────────────────────────────────────────────────────
-  async function loadAll() {
-    document.getElementById('refresh-btn').textContent = '⟳ Loading…';
-    try {
-      const [pwData, ivData, allWardsData] = await Promise.all([
-        get('/bbmp/priority-wards?limit=20'),
-        post('/interventions/recommend', { budget: 120, top_k: 15 }),
-        get('/wards/risk?limit=198'),
-      ]);
-
-      const priorityWards = pwData.priority_wards || [];
-      const ivs = ivData.recommendations || [];
-      const allWards = allWardsData.wards || [];
-
-      renderKPIs(allWards, ivs);
-      renderPriorityTable(priorityWards);
-      renderInterventionTable(ivs);
-      renderRiskChart(allWards);
-      renderScatterChart(priorityWards);
-      renderROIChart(ivs);
-      loadCitizenReports();
-
-      const src = allWardsData.source === 'postgresql_live' ? '🟢 Live DB' : '🟡 Model';
-      document.getElementById('last-updated').textContent =
-        `${src} · Updated ${new Date().toLocaleTimeString()}`;
-    } catch (e) {
-      console.error(e);
-      document.getElementById('kpi-row').innerHTML =
-        `<div class="loading" style="color:red">❌ Failed to load: ${e.message}</div>`;
-    } finally {
-      document.getElementById('refresh-btn').textContent = '⟳ Refresh';
-    }
-  }
-
-  // Clock — updates every second
   setInterval(() => {
-    if (document.getElementById('login-overlay').classList.contains('hidden')) {
-      const src = document.getElementById('last-updated').textContent;
-      const srcPart = src.includes('·') ? src.split('·')[0].trim() : src;
-      document.getElementById('last-updated').textContent =
-        `${srcPart} · ${new Date().toLocaleTimeString()}`;
-    }
+    if (!document.getElementById('login-overlay').classList.contains('hidden')) return;
+    const src = document.getElementById('last-updated').textContent;
+    const srcPart = src.includes('·') ? src.split('·')[0].trim() : src;
+    document.getElementById('last-updated').textContent = `${srcPart} · ${new Date().toLocaleTimeString()}`;
   }, 1000);
-
-  // Data refresh every 10 seconds (API is local, no network cost)
   setInterval(() => {
     if (!document.getElementById('login-overlay').classList.contains('hidden')) return;
     loadAll();
   }, 10 * 1000);
 
-  // Boot — check session first
+  initThemeMode();
   checkSession();
 </script>
 </body>

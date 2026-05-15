@@ -10,9 +10,12 @@ Routes — Citizen Report endpoints
 from __future__ import annotations
 
 import json
+import math
 import os
+import sys
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -26,19 +29,176 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 UPLOAD_DIR = str(get_settings().upload_dir)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+FLOOD_LIKE_REPORT_TYPES = {"flood", "waterlogging"}
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_DATA_DIR = _PROJECT_ROOT / "8_data"
+if str(_DATA_DIR) not in sys.path:
+    sys.path.insert(0, str(_DATA_DIR))
+
+_KNOWN_LOCATION_WARD_OVERRIDES = [
+    {
+        "ward_id": 111,
+        "ward_name": "Shanthalanagar",
+        "lat_min": 12.9600,
+        "lat_max": 12.9825,
+        "lon_min": 77.5900,
+        "lon_max": 77.6075,
+        "note": "Central Bengaluru / UB City / Cubbon Park belt",
+    },
+]
+
 
 # ---------------------------------------------------------------------------
 # Pydantic model (JSON-body endpoint)
 # ---------------------------------------------------------------------------
 
 class CitizenReport(BaseModel):
-    ward_id:     int            = Field(..., ge=1, le=198)
+    ward_id:     Optional[int]  = Field(None, ge=1, le=198)
     latitude:    float          = Field(..., ge=12.77, le=13.18)
     longitude:   float          = Field(..., ge=77.35, le=77.82)
     report_type: str            = Field(...)
     severity:    int            = Field(..., ge=1, le=5)
     description: Optional[str] = Field(None, max_length=1000)
     image_url:   Optional[str] = Field(None, max_length=500)
+
+
+def _apply_flood_prediction_guard(
+    report_type: str,
+    result: dict,
+) -> tuple[bool, Optional[float]]:
+    if report_type not in FLOOD_LIKE_REPORT_TYPES:
+        result["details"]["auto_alert_suppressed"] = (
+            f"Report type '{report_type}' is not flood-like; flood alerts are "
+            "only emitted for flood and waterlogging reports."
+        )
+        return False, None
+
+    flood_predicted = result["is_flood"]
+    flood_confidence = result["confidence"] if flood_predicted else None
+    return flood_predicted, flood_confidence
+
+
+def _analyse_saved_report_image(report_type: str, image_url: Optional[str]) -> Optional[dict]:
+    if not image_url:
+        return None
+    try:
+        from image_classifier import classify_report_image
+
+        filename = os.path.basename(image_url)
+        filepath = os.path.join(UPLOAD_DIR, filename)
+        if not os.path.exists(filepath):
+            return None
+        with open(filepath, "rb") as f:
+            return classify_report_image(report_type, f.read())
+    except Exception:
+        return None
+
+
+def _report_type_from_ai_label(label: str) -> Optional[str]:
+    return {
+        "poor_air_quality": "air_quality",
+        "heat_wave_dry_conditions": "heat_wave",
+        "tree_fall_detected": "tree_fall",
+        "waterlogging": "waterlogging",
+        "flood": "flood",
+    }.get(label)
+
+
+def _derive_effective_ai_result(report_type: str, ai_result: dict) -> dict:
+    detected_type = _report_type_from_ai_label(ai_result.get("label", ""))
+    auto_override = bool(ai_result.get("details", {}).get("auto_override"))
+    effective_type = (
+        detected_type
+        if detected_type and (auto_override or detected_type in FLOOD_LIKE_REPORT_TYPES)
+        else report_type
+    )
+    flood_predicted = (
+        effective_type in FLOOD_LIKE_REPORT_TYPES
+        and ai_result.get("label") in ("flood", "waterlogging")
+    )
+    flood_confidence = ai_result.get("confidence") if flood_predicted else None
+    return {
+        "effective_type": effective_type,
+        "flood_predicted": flood_predicted,
+        "flood_confidence": flood_confidence,
+    }
+
+
+def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius_km = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    return 2 * radius_km * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _nearest_ward_for_location(latitude: float, longitude: float) -> Optional[dict]:
+    for override in _KNOWN_LOCATION_WARD_OVERRIDES:
+        if (
+            override["lat_min"] <= latitude <= override["lat_max"]
+            and override["lon_min"] <= longitude <= override["lon_max"]
+        ):
+            return {
+                "ward_id": int(override["ward_id"]),
+                "ward_name": str(override["ward_name"]),
+                "distance_km": 0.0,
+                "source": "known_location_override",
+                "note": override["note"],
+            }
+
+    try:
+        from _common import synthetic_ward_catalogue  # type: ignore
+    except Exception:
+        return None
+
+    nearest = None
+    for ward in synthetic_ward_catalogue():
+        centroid_lon, centroid_lat = ward["centroid"]
+        distance = _distance_km(latitude, longitude, centroid_lat, centroid_lon)
+        if nearest is None or distance < nearest["distance_km"]:
+            nearest = {
+                "ward_id": int(ward["ward_id"]),
+                "ward_name": str(ward["ward_name"]),
+                "distance_km": round(distance, 3),
+            }
+    return nearest
+
+
+def _validate_report_location(
+    selected_ward_id: Optional[int],
+    latitude: float,
+    longitude: float,
+) -> dict:
+    expected = _nearest_ward_for_location(latitude, longitude)
+    if expected is None:
+        return {
+            "location_mismatch": False,
+            "expected_ward_id": None,
+            "expected_ward_name": None,
+            "resolved_ward_id": selected_ward_id,
+            "resolved_ward_name": None,
+            "distance_km": None,
+            "fake_reason": None,
+            "ward_auto_selected": False,
+        }
+
+    mismatch = selected_ward_id is not None and expected["ward_id"] != selected_ward_id
+    return {
+        "location_mismatch": False,
+        "expected_ward_id": expected["ward_id"],
+        "expected_ward_name": expected["ward_name"],
+        "resolved_ward_id": expected["ward_id"],
+        "resolved_ward_name": expected["ward_name"],
+        "distance_km": expected["distance_km"],
+        "fake_reason": None,
+        "ward_auto_selected": True,
+        "submitted_ward_id": selected_ward_id,
+        "submitted_ward_overridden": mismatch,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +219,14 @@ def _ensure_table(conn) -> None:
                 image_url        TEXT,
                 flood_predicted  BOOLEAN DEFAULT FALSE,
                 flood_confidence DOUBLE PRECISION,
+                ai_label         TEXT,
+                ai_confidence    DOUBLE PRECISION,
+                ai_details       JSONB,
+                is_fake          BOOLEAN DEFAULT FALSE,
+                fake_reason      TEXT,
+                expected_ward_id INTEGER,
+                expected_ward_name TEXT,
+                location_distance_km DOUBLE PRECISION,
                 reported_at      TIMESTAMPTZ DEFAULT NOW(),
                 source           TEXT DEFAULT 'api'
             )
@@ -67,6 +235,15 @@ def _ensure_table(conn) -> None:
         for col, defn in [
             ("flood_predicted",  "BOOLEAN DEFAULT FALSE"),
             ("flood_confidence", "DOUBLE PRECISION"),
+            ("ai_label",         "TEXT"),
+            ("ai_confidence",    "DOUBLE PRECISION"),
+            ("ai_details",       "JSONB"),
+            ("is_fake",          "BOOLEAN DEFAULT FALSE"),
+            ("bbmp_confirmed",   "BOOLEAN DEFAULT FALSE"),
+            ("fake_reason",      "TEXT"),
+            ("expected_ward_id", "INTEGER"),
+            ("expected_ward_name", "TEXT"),
+            ("location_distance_km", "DOUBLE PRECISION"),
         ]:
             try:
                 cur.execute(
@@ -91,6 +268,14 @@ def _save_report(
     image_url: Optional[str],
     flood_predicted: bool = False,
     flood_confidence: Optional[float] = None,
+    ai_label: Optional[str] = None,
+    ai_confidence: Optional[float] = None,
+    ai_details: Optional[dict] = None,
+    is_fake: bool = False,
+    fake_reason: Optional[str] = None,
+    expected_ward_id: Optional[int] = None,
+    expected_ward_name: Optional[str] = None,
+    location_distance_km: Optional[float] = None,
 ) -> int:
     try:
         import psycopg2
@@ -104,12 +289,18 @@ def _save_report(
             cur.execute("""
                 INSERT INTO citizen_reports
                     (ward_id, latitude, longitude, report_type, severity,
-                     description, image_url, flood_predicted, flood_confidence)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     description, image_url, flood_predicted, flood_confidence,
+                     ai_label, ai_confidence, ai_details, is_fake, fake_reason,
+                     expected_ward_id, expected_ward_name, location_distance_km)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 ward_id, latitude, longitude, report_type, severity,
                 description, image_url, flood_predicted, flood_confidence,
+                ai_label, ai_confidence,
+                json.dumps(ai_details) if ai_details is not None else None,
+                is_fake, fake_reason, expected_ward_id, expected_ward_name,
+                location_distance_km,
             ))
             row_id = cur.fetchone()[0]
         conn.commit()
@@ -144,24 +335,61 @@ async def _broadcast_flood_alert(ward_id: int, ward_name: str,
 
 
 # ---------------------------------------------------------------------------
+# GET /reports/resolve-ward  — derive ward from GPS coordinates
+# ---------------------------------------------------------------------------
+
+@router.get("/resolve-ward")
+async def resolve_ward(latitude: float, longitude: float):
+    if not (12.77 <= latitude <= 13.18 and 77.35 <= longitude <= 77.82):
+        raise HTTPException(
+            status_code=400,
+            detail="Coordinates are outside supported Bengaluru bounds",
+        )
+    ward = _nearest_ward_for_location(latitude, longitude)
+    if ward is None:
+        raise HTTPException(status_code=404, detail="Could not resolve ward")
+    return {
+        "ward_id": ward["ward_id"],
+        "ward_name": ward["ward_name"],
+        "distance_km": ward["distance_km"],
+        "latitude": latitude,
+        "longitude": longitude,
+        "source": "coordinates",
+    }
+
+
+# ---------------------------------------------------------------------------
 # POST /reports/  (JSON body — legacy)
 # ---------------------------------------------------------------------------
 
 @router.post("/")
 async def submit_report(body: CitizenReport):
+    location_check = _validate_report_location(
+        body.ward_id, body.latitude, body.longitude
+    )
+    resolved_ward_id = location_check["resolved_ward_id"] or body.ward_id
+    if resolved_ward_id is None:
+        raise HTTPException(status_code=400, detail="Could not resolve ward from coordinates")
     report_id = _save_report(
-        ward_id=body.ward_id, latitude=body.latitude, longitude=body.longitude,
+        ward_id=resolved_ward_id, latitude=body.latitude, longitude=body.longitude,
         report_type=body.report_type, severity=body.severity,
         description=body.description, image_url=body.image_url,
+        is_fake=False,
+        fake_reason=location_check["fake_reason"],
+        expected_ward_id=location_check["expected_ward_id"],
+        expected_ward_name=location_check["expected_ward_name"],
+        location_distance_km=location_check["distance_km"],
     )
     return {
         "status":       "accepted",
         "report_id":    report_id,
-        "ward_id":      body.ward_id,
+        "ward_id":      resolved_ward_id,
+        "ward_name":    location_check["resolved_ward_name"],
         "report_type":  body.report_type,
         "severity":     body.severity,
+        "location_check": location_check,
         "submitted_at": datetime.now(timezone.utc).isoformat(),
-        "message":      "Thank you! Your report has been recorded.",
+        "message":      "Thank you! Ward was selected automatically from your location.",
     }
 
 
@@ -171,7 +399,7 @@ async def submit_report(body: CitizenReport):
 
 @router.post("/with-image")
 async def submit_report_with_image(
-    ward_id:     int            = Form(...),
+    ward_id:     Optional[int]  = Form(None),
     latitude:    float          = Form(...),
     longitude:   float          = Form(...),
     report_type: str            = Form(...),
@@ -201,32 +429,43 @@ async def submit_report_with_image(
         f.write(image_bytes)
     image_url = f"/bbmp-static/uploads/{filename}"
 
-    # 3. Run flood classifier
-    from image_classifier import classify_image
-    result = classify_image(image_bytes)
-
-    flood_predicted  = result["is_flood"]
-    flood_confidence = result["confidence"]
-    effective_type   = "flood" if flood_predicted and report_type not in ("flood", "waterlogging") \
-                       else report_type
+    # 3. Run report-type image analysis
+    from image_classifier import classify_report_image
+    ai_result = classify_report_image(report_type, image_bytes)
+    derived = _derive_effective_ai_result(report_type, ai_result)
+    effective_type = derived["effective_type"]
+    flood_predicted = derived["flood_predicted"]
+    flood_confidence = derived["flood_confidence"]
 
     # 4. Save to DB
     from services import _ward_catalogue
     names     = _ward_catalogue()
-    ward_name = names.get(ward_id, f"Ward {ward_id}")
+    location_check = _validate_report_location(ward_id, latitude, longitude)
+    resolved_ward_id = location_check["resolved_ward_id"] or ward_id
+    if resolved_ward_id is None:
+        raise HTTPException(status_code=400, detail="Could not resolve ward from coordinates")
+    ward_name = names.get(resolved_ward_id, f"Ward {resolved_ward_id}")
 
     report_id = _save_report(
-        ward_id=ward_id, latitude=latitude, longitude=longitude,
+        ward_id=resolved_ward_id, latitude=latitude, longitude=longitude,
         report_type=effective_type, severity=severity,
         description=description, image_url=image_url,
         flood_predicted=flood_predicted,
         flood_confidence=flood_confidence,
+        ai_label=ai_result["label"],
+        ai_confidence=ai_result["confidence"] or None,
+        ai_details=ai_result["details"],
+        is_fake=False,
+        fake_reason=location_check["fake_reason"],
+        expected_ward_id=location_check["expected_ward_id"],
+        expected_ward_name=location_check["expected_ward_name"],
+        location_distance_km=location_check["distance_km"],
     )
 
     # 5. Broadcast alert if flood detected
-    if flood_predicted:
+    if flood_predicted and not location_check["location_mismatch"]:
         await _broadcast_flood_alert(
-            ward_id=ward_id, ward_name=ward_name,
+            ward_id=resolved_ward_id, ward_name=ward_name,
             confidence=flood_confidence, report_id=report_id,
             image_url=image_url,
         )
@@ -234,21 +473,25 @@ async def submit_report_with_image(
     return {
         "status":           "accepted",
         "report_id":        report_id,
-        "ward_id":          ward_id,
+        "ward_id":          resolved_ward_id,
+        "ward_name":        ward_name,
         "report_type":      effective_type,
         "severity":         severity,
         "image_url":        image_url,
         "flood_predicted":  flood_predicted,
         "flood_confidence": flood_confidence,
-        "ai_label":         result["label"],
-        "ai_details":       result["details"],
-        "alert_sent":       flood_predicted,
+        "ai_label":         ai_result["label"],
+        "ai_confidence":    ai_result["confidence"],
+        "ai_details":       ai_result["details"],
+        "ai_corrected_report_type": effective_type != report_type,
+        "location_check":   location_check,
+        "alert_sent":       flood_predicted and not location_check["location_mismatch"],
         "submitted_at":     datetime.now(timezone.utc).isoformat(),
         "message": (
             f"⚠️ Flood detected ({flood_confidence*100:.0f}% confidence)! "
-            f"Alert sent to all citizens and BBMP."
+            f"Alert sent to all citizens and BBMP. Ward selected automatically from location."
             if flood_predicted
-            else "Thank you! Your report has been recorded."
+            else "Thank you! Ward was selected automatically from your location."
         ),
     }
 
@@ -269,6 +512,13 @@ async def recent_reports(limit: int = 20, _auth = Depends(require_role("admin"))
             for col, defn in [
                 ("is_fake",        "BOOLEAN DEFAULT FALSE"),
                 ("bbmp_confirmed", "BOOLEAN DEFAULT FALSE"),
+                ("ai_label",       "TEXT"),
+                ("ai_confidence",  "DOUBLE PRECISION"),
+                ("ai_details",     "JSONB"),
+                ("fake_reason",    "TEXT"),
+                ("expected_ward_id", "INTEGER"),
+                ("expected_ward_name", "TEXT"),
+                ("location_distance_km", "DOUBLE PRECISION"),
             ]:
                 try:
                     cur.execute(f"ALTER TABLE citizen_reports ADD COLUMN IF NOT EXISTS {col} {defn}")
@@ -280,15 +530,18 @@ async def recent_reports(limit: int = 20, _auth = Depends(require_role("admin"))
             cur.execute("""
                 SELECT id, ward_id, report_type, severity, description,
                        image_url, flood_predicted, flood_confidence, reported_at,
-                       COALESCE(is_fake, FALSE), COALESCE(bbmp_confirmed, FALSE)
+                       COALESCE(is_fake, FALSE), COALESCE(bbmp_confirmed, FALSE),
+                       ai_label, ai_confidence, ai_details,
+                       fake_reason, expected_ward_id, expected_ward_name,
+                       location_distance_km
                 FROM   citizen_reports
                 ORDER  BY reported_at DESC
                 LIMIT  %s
             """, (limit,))
             rows = cur.fetchall()
-        conn.close()
-        reports = [
-            {
+        reports = []
+        for r in rows:
+            report = {
                 "id":               r[0],
                 "ward_id":          r[1],
                 "report_type":      r[2],
@@ -300,9 +553,53 @@ async def recent_reports(limit: int = 20, _auth = Depends(require_role("admin"))
                 "reported_at":      r[8].isoformat() if r[8] else None,
                 "is_fake":          r[9],
                 "bbmp_confirmed":   r[10],
+                "ai_label":         r[11],
+                "ai_confidence":    round(float(r[12]), 3) if r[12] else None,
+                "ai_details":       r[13],
+                "fake_reason":      r[14],
+                "expected_ward_id":  r[15],
+                "expected_ward_name": r[16],
+                "location_distance_km": round(float(r[17]), 3) if r[17] else None,
             }
-            for r in rows
-        ]
+            if report["report_type"] in {
+                "air_quality", "heat_wave", "tree_fall", "waterlogging", "flood"
+            } and report["image_url"]:
+                ai = _analyse_saved_report_image(report["report_type"], report["image_url"])
+                if ai:
+                    derived = _derive_effective_ai_result(report["report_type"], ai)
+                    effective_type = derived["effective_type"]
+                    flood_predicted = derived["flood_predicted"]
+                    flood_confidence = derived["flood_confidence"]
+
+                    report["ai_label"] = ai["label"]
+                    report["ai_confidence"] = ai["confidence"] or None
+                    report["ai_details"] = ai["details"]
+                    report["report_type"] = effective_type
+                    report["flood_predicted"] = flood_predicted
+                    report["flood_confidence"] = flood_confidence
+
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            UPDATE citizen_reports
+                            SET report_type = %s,
+                                flood_predicted = %s,
+                                flood_confidence = %s,
+                                ai_label = %s,
+                                ai_confidence = %s,
+                                ai_details = %s
+                            WHERE id = %s
+                        """, (
+                            effective_type,
+                            flood_predicted,
+                            flood_confidence,
+                            ai["label"],
+                            ai["confidence"] or None,
+                            json.dumps(ai["details"]),
+                            report["id"],
+                        ))
+                    conn.commit()
+            reports.append(report)
+        conn.close()
     except Exception:
         reports = []
 
