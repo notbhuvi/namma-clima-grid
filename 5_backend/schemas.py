@@ -47,10 +47,14 @@ class WardRisk(BaseModel):
     ndvi:               Optional[float] = None
     impervious_pct:     Optional[float] = None
     updated_at:         Optional[datetime] = None
-    # Live weather fields (present when source == "live_weather")
+    # Live weather fields (present when source includes "live_weather")
     temperature_c:      Optional[float] = Field(None, description="Real air temperature (°C)")
     rainfall_mm:        Optional[float] = Field(None, description="Real 24h rainfall (mm)")
     humidity_pct:       Optional[float] = Field(None, description="Relative humidity (%)")
+    data_source:         Optional[str] = Field(None, description="Source tier used for this prediction")
+    confidence_tier:     Optional[str] = Field(None, description="high | medium | low")
+    confidence_score:    Optional[float] = Field(None, ge=0, le=1, description="Prediction confidence 0–1")
+    confidence_reason:   Optional[str] = Field(None, description="Human-readable confidence explanation")
 
 
 class WardRiskResponse(BaseModel):
@@ -59,7 +63,8 @@ class WardRiskResponse(BaseModel):
     total:         int
     timestamp:     datetime
     model_version: Optional[str] = None
-    source:        Optional[str] = None   # "postgresql_live" | "live_weather" | "model_generated"
+    source:        Optional[str] = None   # "postgresql_live" | "live_weather+GEE-Landsat" | "model_generated"
+    prediction_confidence: Optional[dict] = None
 
 
 class WardRiskSnapshot(BaseModel):

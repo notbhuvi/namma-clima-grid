@@ -13,6 +13,10 @@ class WardRisk {
   final double? temperatureC;
   final double? rainfallMm;
   final double? humidityPct;
+  final String? dataSource;
+  final String? confidenceTier;
+  final double? confidenceScore;
+  final String? confidenceReason;
 
   const WardRisk({
     required this.wardId,
@@ -27,6 +31,10 @@ class WardRisk {
     this.temperatureC,
     this.rainfallMm,
     this.humidityPct,
+    this.dataSource,
+    this.confidenceTier,
+    this.confidenceScore,
+    this.confidenceReason,
   });
 
   factory WardRisk.fromJson(Map<String, dynamic> j) => WardRisk(
@@ -44,6 +52,10 @@ class WardRisk {
         temperatureC: (j['temperature_c'] as num?)?.toDouble(),
         rainfallMm:   (j['rainfall_mm']   as num?)?.toDouble(),
         humidityPct:  (j['humidity_pct']  as num?)?.toDouble(),
+        dataSource: j['data_source'] as String?,
+        confidenceTier: j['confidence_tier'] as String?,
+        confidenceScore: (j['confidence_score'] as num?)?.toDouble(),
+        confidenceReason: j['confidence_reason'] as String?,
       );
 
   /// Combined risk score (0–100) used for sorting and colour mapping.
@@ -57,12 +69,14 @@ class WardRiskResponse {
   final int total;
   final DateTime timestamp;
   final String? source;
+  final Map<String, dynamic>? predictionConfidence;
 
   const WardRiskResponse({
     required this.wards,
     required this.total,
     required this.timestamp,
     this.source,
+    this.predictionConfidence,
   });
 
   factory WardRiskResponse.fromJson(Map<String, dynamic> j) =>
@@ -73,6 +87,8 @@ class WardRiskResponse {
         total: j['total'] as int,
         timestamp: DateTime.parse(j['timestamp'] as String),
         source: j['source'] as String?,
+        predictionConfidence:
+            j['prediction_confidence'] as Map<String, dynamic>?,
       );
 }
 

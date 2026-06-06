@@ -18,7 +18,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from services import get_ward_risks_cached
+from services import get_ward_risks_cached, get_model_validation_summary_sync
 
 router = APIRouter(tags=["research"])
 
@@ -136,6 +136,21 @@ async def feature_importance():
 
 
 # ---------------------------------------------------------------------------
+# GET /research/model-validation
+# ---------------------------------------------------------------------------
+
+@router.get("/research/model-validation")
+async def model_validation():
+    """
+    Return honest model evidence: checkpoint metrics, data-quality checks,
+    feature-importance summary, and the current validation caveat.
+    """
+    payload = get_model_validation_summary_sync()
+    payload["generated_at"] = datetime.now(timezone.utc).isoformat()
+    return payload
+
+
+# ---------------------------------------------------------------------------
 # GET /wards/geojson/live  (prefix="/wards" from router tag, but manually set)
 # ---------------------------------------------------------------------------
 
@@ -177,6 +192,8 @@ async def wards_geojson_live():
                 "flood_risk_score":  round(w.get("flood_risk_score", 0), 2),
                 "risk_level":        w.get("risk_level", "medium"),
                 "lst_pred_celsius":  w.get("lst_pred_celsius"),
+                "temperature_c":      w.get("temperature_c"),
+                "rainfall_mm":        w.get("rainfall_mm"),
                 "ndvi":              w.get("ndvi"),
             },
         })

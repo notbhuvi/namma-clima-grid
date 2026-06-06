@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -35,6 +36,7 @@ if _DATA_DIR not in sys.path:
 _CACHE_TTL_SEC = 600          # refresh every 10 minutes
 _cache_lock    = Lock()
 _cache: Dict   = {"df": None, "fetched_at": 0.0, "status": "not_fetched"}
+_satellite_cache: Dict = {"df": None, "fetched_at": 0.0, "status": "not_fetched"}
 
 
 # ── Bengaluru representative weather grid (5 lat × 4 lon = 20 points) ─────
@@ -102,13 +104,98 @@ def _fetch_open_meteo() -> Optional[Dict[Tuple[float, float], dict]]:
     return result if result else None
 
 
+def _read_satellite_features() -> Optional[pd.DataFrame]:
+    """Load latest per-ward satellite features from Postgres or Delta Lake."""
+    age = time.time() - _satellite_cache["fetched_at"]
+    if _satellite_cache["df"] is not None and age < _CACHE_TTL_SEC:
+        return _satellite_cache["df"]
+
+    postgres_df = None
+
+    # Prefer PostgreSQL when it contains real materialised features.
+    try:
+        import psycopg2  # type: ignore
+        from config import get_settings
+
+        settings = get_settings()
+        conn = psycopg2.connect(
+            host=settings.postgres_host,
+            port=settings.postgres_port,
+            dbname=settings.postgres_db,
+            user=settings.postgres_user,
+            password=settings.postgres_password,
+            connect_timeout=2,
+        )
+        df = pd.read_sql(
+            """
+            SELECT ward_id, scene_date, ndvi, ndbi, impervious_pct,
+                   lst_celsius, source_scene, updated_at
+            FROM ward_satellite_features
+            ORDER BY ward_id
+            """,
+            conn,
+        )
+        conn.close()
+        if not df.empty:
+            postgres_df = df
+            sources = set(df.get("source_scene", pd.Series(dtype=str)).dropna().astype(str))
+            has_real_source = any("GEE" in src or "Landsat" in src for src in sources)
+            if has_real_source:
+                _satellite_cache.update({"df": df, "fetched_at": time.time(), "status": "postgres"})
+                return df
+    except Exception:
+        pass
+
+    # Fall back to the direct GEE ingestion Delta output. This commonly has the
+    # freshest real satellite data when satellite_ingestion.py was run directly.
+    delta_roots = [
+        os.getenv("DELTA_LAKE_PATH"),
+        os.getenv("DELTA_LAKE_ROOT"),
+        "/tmp/ncg_delta_lake",
+        "/data/delta",
+    ]
+    for root in [r for r in delta_roots if r]:
+        delta_path = Path(root) / "satellite_features"
+        if not delta_path.exists():
+            continue
+        try:
+            from deltalake import DeltaTable  # type: ignore
+
+            df = DeltaTable(str(delta_path)).to_pandas()
+            if not df.empty:
+                if "source" in df.columns and "source_scene" not in df.columns:
+                    df = df.rename(columns={"source": "source_scene"})
+                keep = [
+                    col for col in [
+                        "ward_id", "scene_date", "ndvi", "ndbi", "impervious_pct",
+                        "lst_celsius", "source_scene",
+                    ]
+                    if col in df.columns
+                ]
+                df = df[keep].sort_values("ward_id")
+                sources = set(df.get("source_scene", pd.Series(dtype=str)).dropna().astype(str))
+                has_real_source = any("GEE" in src or "Landsat" in src for src in sources)
+                if has_real_source or postgres_df is None:
+                    _satellite_cache.update({"df": df, "fetched_at": time.time(), "status": "delta"})
+                    return df
+        except Exception:
+            continue
+
+    if postgres_df is not None:
+        _satellite_cache.update({"df": postgres_df, "fetched_at": time.time(), "status": "postgres_synthetic"})
+        return postgres_df
+
+    _satellite_cache.update({"df": None, "fetched_at": time.time(), "status": "unavailable"})
+    return None
+
+
 def _build_ward_df(grid_data: Dict[Tuple[float, float], dict]) -> pd.DataFrame:
     """
     Build a per-ward DataFrame by:
       1. Mapping each ward to its nearest grid point
       2. Adjusting temperature for Urban Heat Island effect
          (LST = air temp + UHI offset based on impervious surface %)
-      3. Keeping NDVI, impervious_pct synthetic (satellite data not available)
+      3. Merging real GEE/Landsat NDVI, impervious %, and LST when available
     """
     try:
         from _common import synthetic_ward_catalogue
@@ -132,6 +219,14 @@ def _build_ward_df(grid_data: Dict[Tuple[float, float], dict]) -> pd.DataFrame:
     except Exception:
         static_map = {}
 
+    satellite_df = _read_satellite_features()
+    satellite_map = {}
+    if satellite_df is not None and not satellite_df.empty:
+        satellite_map = {
+            int(row.ward_id): row.to_dict()
+            for _, row in satellite_df.iterrows()
+        }
+
     records = []
     for ward in catalogue:
         ward_id  = ward["ward_id"]
@@ -148,12 +243,19 @@ def _build_ward_df(grid_data: Dict[Tuple[float, float], dict]) -> pd.DataFrame:
         industrial_w     = static.get("industrial_weight",  0.2)
         pm25             = static.get("pm25_ugm3",          45.0)
         pop_density      = static.get("population_density", 14000.0)
+        satellite = satellite_map.get(ward_id, {})
+        satellite_source = satellite.get("source_scene") or satellite.get("source")
+        if satellite:
+            ndvi = satellite.get("ndvi", ndvi)
+            impervious_pct = satellite.get("impervious_pct", impervious_pct)
 
         # ── Urban Heat Island offset ──────────────────────────────────────
         # Dense urban wards are 2–6°C hotter than air temp (well-documented
         # in Bengaluru literature). Impervious surface % drives the offset.
         uhi_offset  = 1.5 + (impervious_pct / 100.0) * 4.5 + industrial_w * 2.0
         lst_celsius = weather["temperature_c"] + uhi_offset - ndvi * 3.0
+        if satellite.get("lst_celsius") is not None:
+            lst_celsius = satellite["lst_celsius"]
 
         # ── Rainfall: use 24h sum, boost if currently raining ────────────
         rainfall = weather["rainfall_mm"]
@@ -181,6 +283,8 @@ def _build_ward_df(grid_data: Dict[Tuple[float, float], dict]) -> pd.DataFrame:
             "population_density": round(pop_density, 1),
             "industrial_weight":  round(industrial_w, 3),
             "uhi_offset":         round(uhi_offset, 2),
+            "satellite_source":    satellite_source or "synthetic_static",
+            "satellite_scene_date": str(satellite.get("scene_date")) if satellite.get("scene_date") is not None else None,
             # Grid source
             "weather_grid_lat": grid_pt[0],
             "weather_grid_lon": grid_pt[1],

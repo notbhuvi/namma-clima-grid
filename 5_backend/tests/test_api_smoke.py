@@ -39,7 +39,9 @@ def test_ward_risk_fallback_contract() -> None:
     assert body["total"] == 3
     assert len(body["wards"]) == 3
     assert body["source"] == "model_generated"
+    assert body["prediction_confidence"]["tier"] == "low"
     assert {"ward_id", "heat_stress_score", "flood_risk_score", "risk_level"} <= set(body["wards"][0])
+    assert {"data_source", "confidence_tier", "confidence_score"} <= set(body["wards"][0])
 
 
 def test_intervention_catalogue_contract() -> None:
@@ -56,6 +58,31 @@ def test_intervention_catalogue_contract() -> None:
         "urban_wetland",
         "cool_pavement",
     }
+
+
+def test_model_validation_contract() -> None:
+    with TestClient(app) as client:
+        response = client.get("/research/model-validation")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["evidence_level"] == "prototype_synthetic_validation"
+    assert "important_caveat" in body
+    assert {"cnn_vit_thermal", "st_gnn", "ppo_optimizer", "citizen_image_classifier"} <= set(
+        body["model_metrics"]
+    )
+
+
+def test_optimizer_comparison_contract() -> None:
+    with TestClient(app) as client:
+        response = client.get("/interventions/optimizer-comparison", params={"budget": 20, "top_k": 5})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["budget"] == 20
+    assert body["optimizer"]["totals"]["budget_used"] <= 20
+    assert body["greedy_baseline"]["totals"]["budget_used"] <= 20
+    assert "optimizer_minus_greedy" in body
 
 
 def test_admin_endpoints_require_bearer_token() -> None:

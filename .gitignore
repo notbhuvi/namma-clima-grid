@@ -3,6 +3,7 @@
 .env.*
 !.env.template
 !.env.production.example
+secrets/
 .venv/
 __pycache__/
 *.py[cod]
@@ -12,6 +13,7 @@ checkpoints/
 *.ckpt
 *.pt
 *.pth
+8_data/landsat/
 
 # Python tooling
 .pytest_cache/

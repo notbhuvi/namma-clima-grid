@@ -304,10 +304,16 @@ with DAG(
         bash_command="python /opt/airflow/dags/../weather_ingestion.py",
     )
 
-    # 3. Satellite ingestion (with fallback)
+    # 3. Satellite ingestion (real GEE when credentials exist, fallback otherwise)
     satellite_ingest = BashOperator(
         task_id="satellite_ingest",
-        bash_command="python /opt/airflow/dags/../satellite_ingestion.py --fallback",
+        bash_command=(
+            "if [ \"${SATELLITE_FORCE_FALLBACK:-false}\" = \"true\" ]; then "
+            "python /opt/airflow/dags/../satellite_ingestion.py --fallback; "
+            "else "
+            "python /opt/airflow/dags/../satellite_ingestion.py --days ${SATELLITE_LOOKBACK_DAYS:-45}; "
+            "fi"
+        ),
     )
 
     # 4. Spark batch processing (try spark-submit first, fall back to python)

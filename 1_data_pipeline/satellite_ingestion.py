@@ -32,6 +32,15 @@ from typing import Dict, List, Optional
 import numpy as np
 from loguru import logger
 
+# Load project .env when running the pipeline locally. Docker/Airflow can still
+# pass these values as real environment variables.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except Exception as exc:  # noqa: BLE001
+    logger.debug(f".env load skipped: {exc}")
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -72,8 +81,15 @@ def _gee_fetch(days: int = 30) -> Optional[List[Dict]]:
         return None
 
     try:
-        ee.Initialize()
-        logger.info("GEE authenticated successfully")
+        service_account = os.getenv("GEE_SERVICE_ACCOUNT")
+        key_file = os.getenv("GEE_KEY_FILE")
+        if service_account and key_file and Path(key_file).exists():
+            credentials = ee.ServiceAccountCredentials(service_account, key_file)
+            ee.Initialize(credentials)
+            logger.info(f"GEE service account authenticated: {service_account}")
+        else:
+            ee.Initialize()
+            logger.info("GEE authenticated with local/default credentials")
     except Exception as exc:
         logger.warning(f"GEE auth failed ({exc}) — will use fallback")
         return None

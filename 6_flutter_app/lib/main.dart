@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'screens/dashboard_screen.dart';
 import 'screens/map_screen.dart';
-import 'screens/interventions_screen.dart';
 import 'screens/report_screen.dart';
 import 'screens/alerts_screen.dart';
 import 'services/websocket_service.dart';
 import 'providers/ward_providers.dart';
+import 'widgets/app_theme.dart';
 
 void main() {
   runApp(const ProviderScope(child: NammaClimaGridApp()));
@@ -40,46 +39,20 @@ class _NammaClimaGridAppState extends ConsumerState<NammaClimaGridApp> {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
     return MaterialApp(
       title: 'NammaClimaGrid',
       debugShowCheckedModeBanner: false,
-      theme: _buildTheme(),
+      theme: buildNcgTheme(Brightness.light),
+      darkTheme: buildNcgTheme(Brightness.dark),
+      themeMode: themeMode,
       home: const AppShell(),
-    );
-  }
-
-  ThemeData _buildTheme() {
-    final base = ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF1B6B3A),
-        brightness: Brightness.light,
-      ),
-      useMaterial3: true,
-    );
-    return base.copyWith(
-      textTheme: GoogleFonts.nunitoTextTheme(base.textTheme),
-      appBarTheme: AppBarTheme(
-        backgroundColor: const Color(0xFF1B6B3A),
-        foregroundColor: Colors.white,
-        titleTextStyle: GoogleFonts.nunito(
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
-        elevation: 0,
-      ),
-      cardTheme: base.cardTheme.copyWith(
-        elevation: 2,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Shell with 5-tab bottom navigation
+// Shell with citizen-facing bottom navigation
 // ---------------------------------------------------------------------------
 
 class AppShell extends ConsumerStatefulWidget {
@@ -95,7 +68,6 @@ class _AppShellState extends ConsumerState<AppShell> {
   static const _screens = [
     DashboardScreen(),
     MapScreen(),
-    InterventionsScreen(),
     ReportScreen(),
     AlertsScreen(),
   ];
@@ -105,7 +77,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Listen to alert stream to update badge count
     ref.listen<AsyncValue<List>>(alertsProvider, (_, next) {
       next.whenData((alerts) {
-        if (_selectedIndex != 4) {
+        if (_selectedIndex != 3) {
           // Only increment badge if not on alerts tab
           final count = alerts.length;
           ref.read(unreadAlertCountProvider.notifier).state = count;
@@ -125,7 +97,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         onDestinationSelected: (i) {
           setState(() => _selectedIndex = i);
           // Clear badge when navigating to alerts
-          if (i == 4) {
+          if (i == 3) {
             ref.read(unreadAlertCountProvider.notifier).state = 0;
           }
         },
@@ -139,11 +111,6 @@ class _AppShellState extends ConsumerState<AppShell> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: 'Map',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.eco_outlined),
-            selectedIcon: Icon(Icons.eco),
-            label: 'Interventions',
           ),
           const NavigationDestination(
             icon: Icon(Icons.edit_note_outlined),

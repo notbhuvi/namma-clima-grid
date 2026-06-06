@@ -18,6 +18,7 @@ from schemas import (
     WardForecast, WardRisk, WardRiskResponse, WardRiskSnapshot,
 )
 from services import get_ward_risks, get_forecasts, _ward_catalogue
+from services import prediction_confidence
 
 router = APIRouter(prefix="/wards", tags=["wards"])
 
@@ -84,12 +85,20 @@ async def list_ward_risks(
         source = "postgresql_live"
     else:
         source = df_source  # "live_weather" or "model_generated"
+    confidence = prediction_confidence(source)
+
+    for ward in wards:
+        ward.data_source = source
+        ward.confidence_tier = confidence["tier"]
+        ward.confidence_score = confidence["score"]
+        ward.confidence_reason = confidence["reason"]
 
     return WardRiskResponse(
         wards=wards,
         total=len(wards),
         timestamp=datetime.now(timezone.utc),
         source=source,
+        prediction_confidence=confidence,
     )
 
 
@@ -109,6 +118,9 @@ async def get_ward_detail(ward_id: int):
 
     row = df.iloc[0]
     names = _ward_catalogue()
+    df_source = row.get("data_source", "model_generated")
+    source = "postgresql_live" if "updated_at" in df.columns and df["updated_at"].notna().any() else df_source
+    confidence = prediction_confidence(source)
 
     ward = WardRisk(
         ward_id=int(row["ward_id"]),
@@ -120,6 +132,10 @@ async def get_ward_detail(ward_id: int):
         ndvi=row.get("ndvi"),
         impervious_pct=row.get("impervious_pct"),
         updated_at=datetime.now(timezone.utc),
+        data_source=source,
+        confidence_tier=confidence["tier"],
+        confidence_score=confidence["score"],
+        confidence_reason=confidence["reason"],
     )
 
     return WardDetailResponse(ward=ward)
